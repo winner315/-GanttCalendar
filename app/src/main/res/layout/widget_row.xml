@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="horizontal" android:gravity="center_vertical">
+    <TextView android:id="@+id/tvRowTitle" android:layout_width="56dp"
+        android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
+        android:textSize="9sp" android:textColor="#666666"/>
+    <LinearLayout android:id="@+id/cellsRow" android:layout_width="0dp"
+        android:layout_height="wrap_content" android:layout_weight="1"
+        android:orientation="horizontal"/>
+</LinearLayout>

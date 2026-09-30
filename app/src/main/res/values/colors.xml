@@ -10,4 +10,5 @@
     <color name="c5">#FF8A3D</color>
     <color name="c6">#2FB6C4</color>
     <color name="c7">#E85D9C</color>
+    <color name="cellEmpty">#F0F0F0</color>
 </resources>

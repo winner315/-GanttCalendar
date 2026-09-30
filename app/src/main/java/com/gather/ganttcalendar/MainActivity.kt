@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.gather.ganttcalendar.data.ScheduleRepository
 import com.gather.ganttcalendar.ui.ScheduleAdapter
 import com.gather.ganttcalendar.ui.ScheduleEditActivity
+import com.gather.ganttcalendar.widget.WidgetUpdater
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 class MainActivity : AppCompatActivity() {
@@ -37,5 +38,6 @@ class MainActivity : AppCompatActivity() {
         adapter.submit(list)
         findViewById<TextView>(R.id.tvEmpty).visibility =
             if (list.isEmpty()) View.VISIBLE else View.GONE
+        WidgetUpdater.refreshAll(this)
     }
 }

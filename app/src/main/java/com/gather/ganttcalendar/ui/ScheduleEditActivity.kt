@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import com.gather.ganttcalendar.R
 import com.gather.ganttcalendar.data.Schedule
 import com.gather.ganttcalendar.data.ScheduleRepository
+import com.gather.ganttcalendar.widget.WidgetUpdater
 import java.time.LocalDate
 
 class ScheduleEditActivity : AppCompatActivity() {
@@ -70,11 +71,13 @@ class ScheduleEditActivity : AppCompatActivity() {
             }
             if (editId == 0L) repo.insert(Schedule(title = title, startDate = start, endDate = end, color = selectedColor))
             else repo.update(Schedule(editId, title, start, end, selectedColor))
+            WidgetUpdater.refreshAll(this)
             finish()
         }
 
         btnDelete.setOnClickListener {
             if (editId != 0L) repo.delete(editId)
+            WidgetUpdater.refreshAll(this)
             finish()
         }
     }

@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- RemoteViews 只允许白名单类（带 @RemoteView 注解），裸 View 会在桌面 inflate 失败，必须用 FrameLayout -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 日期格子：只放日号。泳道色带改由上层整条绘制，格子不再承载色块，
+     否则色带会被切成一格一段、事件名也只能挤在一格里。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/cell"
-    android:layout_width="0dp" android:layout_height="12dp"
-    android:layout_weight="1"/>
+    android:layout_width="0dp" android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:orientation="vertical"
+    android:background="@drawable/cell_border">
+
+    <TextView android:id="@+id/tvDay"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:gravity="center" android:textSize="9sp"
+        android:textColor="@color/dayText"/>
+</LinearLayout>

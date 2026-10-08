@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:orientation="horizontal" android:gravity="center_vertical">
-    <TextView android:id="@+id/tvRowTitle" android:layout_width="56dp"
-        android:layout_height="wrap_content" android:maxLines="1" android:ellipsize="end"
-        android:textSize="9sp" android:textColor="#666666"/>
-    <LinearLayout android:id="@+id/cellsRow" android:layout_width="0dp"
-        android:layout_height="wrap_content" android:layout_weight="1"
+<!-- 一周 = 底层日期格子 + 上层泳道色带。色带整条独立绘制、按天数跨格延伸，
+     所以能写出完整的事件名，而不会被截在单个格子里。
+     两层都是 FrameLayout 的兄弟：格子负责日号与点击，色带只负责「哪几天有事」。
+     RemoteViews 只允许带 @RemoteView 注解的白名单类，子视图不能用裸 View，故用 FrameLayout。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/weekRow"
+    android:layout_width="match_parent" android:layout_height="0dp"
+    android:layout_weight="1">
+
+    <!-- 底层：7 个日期格子，格子由渲染器动态添加 -->
+    <LinearLayout android:id="@+id/weekCells"
+        android:layout_width="match_parent" android:layout_height="match_parent"
         android:orientation="horizontal"/>
-</LinearLayout>
+
+    <!-- 上层：泳道色带，每条泳道一行。
+         paddingTop 让色带从日号下面开始，否则不透明的色带会把底层的日期数字整片盖住 -->
+    <LinearLayout android:id="@+id/weekBars"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:paddingTop="14dp"
+        android:orientation="vertical"/>
+</FrameLayout>

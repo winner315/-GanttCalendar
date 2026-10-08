@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 今日格子：浅蓝底 + 蓝色边框 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/todayBg"/>
+    <stroke android:width="0.5dp" android:color="@color/todayBorder"/>
+</shape>

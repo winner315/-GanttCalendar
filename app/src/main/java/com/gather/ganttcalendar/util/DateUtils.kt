@@ -25,4 +25,10 @@ object DateUtils {
         val now = LocalDate.now()
         return now.year to now.monthValue
     }
+
+    /** 当月 1 号在「周一起始」这一周里的位置，0=周一、6=周日 */
+    fun firstDayOffset(year: Int, month: Int): Int =
+        LocalDate.of(year, month, 1).dayOfWeek.value - 1
+
+    fun todayEpochDay(): Long = LocalDate.now().toEpochDay()
 }

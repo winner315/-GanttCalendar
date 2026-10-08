@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 日期格子边框。色带层画在上方，色带所在的下半部分会盖住边框，
+     但日号行和没安排日程的格子能看到完整网格 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/dayCellBg"/>
+    <stroke android:width="0.5dp" android:color="@color/cellBorder"/>
+</shape>

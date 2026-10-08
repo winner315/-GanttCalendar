@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 一段连续日程的色带块，宽度 = 5 天（layout_weight 决定占一行 7 天里的几份）。
+     段宽只能靠 weight 表达，而 weight 是 XML 属性、运行时改不了，故按 1~7 天各做一个。
+     id 在每段里重复出现是安全的：每段是独立的 RemoteViews，操作只作用于自己的根视图。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/seg"
+    android:layout_width="0dp" android:layout_height="match_parent"
+    android:layout_weight="5" android:layout_marginBottom="1dp">
+
+    <TextView android:id="@+id/tvSeg"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:gravity="center" android:paddingStart="3dp" android:paddingEnd="3dp"
+        android:maxLines="1" android:ellipsize="end"
+        android:textSize="8sp" android:textColor="@android:color/white"/>
+</FrameLayout>

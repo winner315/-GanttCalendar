@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 一天宽的空白占位块，用来把色带顶到正确的列上；不需要引用，可重复 addView -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp" android:layout_height="match_parent"
+    android:layout_weight="1"/>

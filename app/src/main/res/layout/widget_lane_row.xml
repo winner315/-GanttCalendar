@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 一条泳道（横向），段与空白块由渲染器按天数依次加入；泳道之间靠 weight 均分高度 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/laneRow"
+    android:layout_width="match_parent" android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"/>

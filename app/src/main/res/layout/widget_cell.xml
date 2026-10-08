@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<View xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- RemoteViews 只允许白名单类（带 @RemoteView 注解），裸 View 会在桌面 inflate 失败，必须用 FrameLayout -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/cell"
     android:layout_width="0dp" android:layout_height="12dp"
     android:layout_weight="1"/>

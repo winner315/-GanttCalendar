@@ -27,6 +27,9 @@ object GanttRenderer {
         val rowCount = minOf(GanttLayoutCalculator.laneCount(bars), MAX_ROWS)
 
         val root = RemoteViews(context.packageName, R.layout.widget_calendar)
+        // launcher 在 layout 相同时会 reapply 复用已有视图，addView 动作会被重放；
+        // 先清空才能保证每次刷新都是幂等的（否则色条行会成倍重复）
+        root.removeAllViews(R.id.rowsContainer)
         root.setTextViewText(R.id.tvMonth, DateUtils.monthTitle(year, month))
 
         for (lane in 0 until rowCount) {
@@ -37,6 +40,7 @@ object GanttRenderer {
             val barByDay = HashMap<Int, Schedule>()
             laneBars.forEach { b -> for (d in b.startDay..b.endDay) barByDay[d] = b.schedule }
 
+            row.removeAllViews(R.id.cellsRow)
             for (day in 1..days) {
                 val cell = RemoteViews(context.packageName, R.layout.widget_cell)
                 val s = barByDay[day]

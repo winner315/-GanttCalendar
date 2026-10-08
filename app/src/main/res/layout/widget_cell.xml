@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 日期格子：只放日号。泳道色带改由上层整条绘制，格子不再承载色块，
-     否则色带会被切成一格一段、事件名也只能挤在一格里。 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 日期格子：日号 + 右上角「休/班」角标。泳道色带改由上层整条绘制，格子不再承载色块，
+     否则色带会被切成一格一段、事件名也只能挤在一格里。
+     根用 FrameLayout 是为了让角标能叠在日号这一层的右上角；FrameLayout 在 RemoteViews 白名单内。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/cell"
     android:layout_width="0dp" android:layout_height="match_parent"
     android:layout_weight="1"
-    android:orientation="vertical"
     android:background="@drawable/cell_border">
 
     <TextView android:id="@+id/tvDay"
         android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="top"
         android:gravity="center" android:textSize="9sp"
         android:textColor="@color/dayText"/>
-</LinearLayout>
+
+    <!-- 法定休息日「休」、调休补班日「班」；没有数据的年月留空，不猜 -->
+    <TextView android:id="@+id/tvBadge"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="1dp" android:layout_marginEnd="2dp"
+        android:maxLines="1" android:textSize="7sp"
+        android:visibility="gone"/>
+</FrameLayout>

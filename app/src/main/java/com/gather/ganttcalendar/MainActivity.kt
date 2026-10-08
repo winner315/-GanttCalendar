@@ -7,6 +7,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.gather.ganttcalendar.data.HolidaySync
 import com.gather.ganttcalendar.data.ScheduleRepository
 import com.gather.ganttcalendar.ui.ScheduleAdapter
 import com.gather.ganttcalendar.ui.ScheduleEditActivity
@@ -39,5 +40,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvEmpty).visibility =
             if (list.isEmpty()) View.VISIBLE else View.GONE
         WidgetUpdater.refreshAll(this)
+        // 节假日数据的联网更新（24h 节流、失败静默回退内置数据）；组件的渲染路径不联网
+        HolidaySync.refreshIfStale(this)
     }
 }

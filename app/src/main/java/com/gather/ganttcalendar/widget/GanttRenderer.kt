@@ -4,10 +4,13 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import com.gather.ganttcalendar.R
+import com.gather.ganttcalendar.data.Holiday
+import com.gather.ganttcalendar.data.HolidayData
 import com.gather.ganttcalendar.data.ScheduleRepository
 import com.gather.ganttcalendar.model.GanttBar
 import com.gather.ganttcalendar.model.GanttLayoutCalculator
@@ -49,8 +52,12 @@ object GanttRenderer {
         val monthStart = DateUtils.monthStartEpoch(year, month)
         val today = DateUtils.todayEpochDay()
 
+        val monthEnd = DateUtils.monthEndEpoch(year, month)
+        // 节假日只查当月一次，渲染路径不联网（联网更新在 HolidaySync，落在 filesDir 里）
+        val holidays = HolidayData.inRange(context, monthStart, monthEnd)
+
         val repo = ScheduleRepository(context)
-        val schedules = repo.getInRange(monthStart, DateUtils.monthEndEpoch(year, month))
+        val schedules = repo.getInRange(monthStart, monthEnd)
         val bars = GanttLayoutCalculator.calculate(schedules, year, month)
         val visible = bars.filter { it.lane < MAX_LANES }
         // 同一泳道在所有周里必须等高，色带才连得起来，故用本月最大泳道数在每周里均分
@@ -98,7 +105,7 @@ object GanttRenderer {
             for (col in 0 until DAYS_PER_WEEK) {
                 val day = weekFirstDay + col
                 val cell = RemoteViews(context.packageName, R.layout.widget_cell)
-                if (day in 1..days) bindDay(context, cell, day, monthStart, today)
+                if (day in 1..days) bindDay(context, cell, day, monthStart, today, holidays[monthStart + day - 1])
                 row.addView(R.id.weekCells, cell)
             }
             for (lane in 0 until laneCount) {
@@ -169,7 +176,14 @@ object GanttRenderer {
         }
     }
 
-    private fun bindDay(context: Context, cell: RemoteViews, day: Int, monthStart: Long, today: Long) {
+    private fun bindDay(
+        context: Context,
+        cell: RemoteViews,
+        day: Int,
+        monthStart: Long,
+        today: Long,
+        holiday: Holiday?
+    ) {
         val isToday = monthStart + (day - 1) == today
         cell.setTextViewText(R.id.tvDay, day.toString())
         cell.setTextColor(
@@ -182,6 +196,21 @@ object GanttRenderer {
             if (isToday) R.drawable.cell_border_today else R.drawable.cell_border
         )
         cell.setInt(R.id.tvDay, "setBackgroundColor", Color.TRANSPARENT)
+
+        // 「休 / 班」角标：没有数据的年月不画（不按「周末即休息」猜，宁可空着）
+        if (holiday == null) {
+            cell.setViewVisibility(R.id.tvBadge, View.GONE)
+        } else {
+            cell.setTextViewText(R.id.tvBadge, if (holiday.isWorkday) "班" else "休")
+            cell.setTextColor(
+                R.id.tvBadge,
+                ContextCompat.getColor(
+                    context,
+                    if (holiday.isWorkday) R.color.workdayBadgeText else R.color.holidayBadgeText
+                )
+            )
+            cell.setViewVisibility(R.id.tvBadge, View.VISIBLE)
+        }
     }
 
     private fun colorOf(context: Context, bar: GanttBar): Int = ContextCompat.getColor(

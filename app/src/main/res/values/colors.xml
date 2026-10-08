@@ -17,4 +17,6 @@
     <color name="legendText">#666666</color>
     <color name="cellBorder">#E0E0E0</color>
     <color name="todayBorder">#A8C7FA</color>
+    <color name="holidayBadgeText">#D93025</color>
+    <color name="workdayBadgeText">#5F6368</color>
 </resources>

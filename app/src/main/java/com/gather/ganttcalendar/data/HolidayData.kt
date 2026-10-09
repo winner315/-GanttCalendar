@@ -63,10 +63,10 @@ object HolidayData {
     }
 
     /**
-     * 当月的「休 / 班」标注：key 是 epochDay，value 为 true 表示补班、false 表示休息。
+     * 当月的「休 / 班」标注：key 是 epochDay，value 是 [DayBadge]。
      * 没被标注的日子（普通工作日）不在表里。
      */
-    fun badgesInRange(context: Context, startEpoch: Long, endEpoch: Long): Map<Long, Boolean> {
+    fun badgesInRange(context: Context, startEpoch: Long, endEpoch: Long): Map<Long, DayBadge> {
         val coveredYears = HashSet<Int>()
         val firstYear = LocalDate.ofEpochDay(startEpoch).year
         val lastYear = LocalDate.ofEpochDay(endEpoch).year
@@ -86,15 +86,16 @@ object HolidayData {
         coveredYears: Set<Int>,
         startEpoch: Long,
         endEpoch: Long
-    ): Map<Long, Boolean> {
-        val out = HashMap<Long, Boolean>()
+    ): Map<Long, DayBadge> {
+        val out = HashMap<Long, DayBadge>()
         var epochDay = startEpoch
         while (epochDay <= endEpoch) {
             val date = LocalDate.ofEpochDay(epochDay)
             val holiday = data[epochDay]
             when {
-                holiday != null -> out[epochDay] = holiday.isWorkday
-                date.year in coveredYears && isWeekend(date) -> out[epochDay] = false
+                holiday != null ->
+                    out[epochDay] = if (holiday.isWorkday) DayBadge.WORKDAY else DayBadge.HOLIDAY
+                date.year in coveredYears && isWeekend(date) -> out[epochDay] = DayBadge.WEEKEND
             }
             epochDay++
         }

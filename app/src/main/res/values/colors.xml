@@ -17,6 +17,8 @@
     <color name="legendText">#666666</color>
     <color name="cellBorder">#E0E0E0</color>
     <color name="todayBorder">#A8C7FA</color>
+    <!-- 角标三色：法定假红、普通周末灰、调休补班蓝，三者互不混淆 -->
     <color name="holidayBadgeText">#D93025</color>
-    <color name="workdayBadgeText">#5F6368</color>
+    <color name="weekendBadgeText">#80868B</color>
+    <color name="workdayBadgeText">#1A73E8</color>
 </resources>

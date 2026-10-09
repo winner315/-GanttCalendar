@@ -47,11 +47,14 @@ class HolidayDataTest {
         // 2026-10-01 周四（休）、10-10 周六（补班）、10-12 周一（普通工作日）
         val data = HolidayData.parse(
             """{"days":[{"name":"国庆节","date":"2026-10-01","isOffDay":true},
+                        {"name":"国庆节","date":"2026-10-04","isOffDay":true},
                         {"name":"国庆节","date":"2026-10-10","isOffDay":false}]}"""
         )
         val badges = HolidayData.badges(data, setOf(2026), epoch("2026-10-01"), epoch("2026-10-12"))
-        assertEquals(false, badges[epoch("2026-10-01")])
-        assertTrue("补班日即使落在周六也要标「班」", badges.getValue(epoch("2026-10-10")))
+        assertEquals(DayBadge.HOLIDAY, badges[epoch("2026-10-01")])
+        // 10-04 是周日，但数据说它是法定假 —— 数据优先，标法定假而不是普通周末
+        assertEquals(DayBadge.HOLIDAY, badges[epoch("2026-10-04")])
+        assertEquals("补班日即使落在周六也要标「班」", DayBadge.WORKDAY, badges[epoch("2026-10-10")])
         assertTrue("普通周一不标", !badges.containsKey(epoch("2026-10-12")))
     }
 
@@ -59,9 +62,10 @@ class HolidayDataTest {
     fun `badges 在数据覆盖的年份里把普通周末标成休息`() {
         // 2026-10-17/18 是普通周六日，10-11 是普通周日
         val badges = HolidayData.badges(emptyMap(), setOf(2026), epoch("2026-10-11"), epoch("2026-10-31"))
-        assertEquals(false, badges[epoch("2026-10-11")])
-        assertEquals(false, badges[epoch("2026-10-17")])
-        assertEquals(false, badges[epoch("2026-10-18")])
+        // 普通周末用 WEEKEND 而不是 HOLIDAY —— 渲染层据此用不同颜色区分
+        assertEquals(DayBadge.WEEKEND, badges[epoch("2026-10-11")])
+        assertEquals(DayBadge.WEEKEND, badges[epoch("2026-10-17")])
+        assertEquals(DayBadge.WEEKEND, badges[epoch("2026-10-18")])
         assertTrue("普通工作日不标", !badges.containsKey(epoch("2026-10-19")))
     }
 

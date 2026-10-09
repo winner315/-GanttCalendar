@@ -9,6 +9,7 @@ import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import com.gather.ganttcalendar.R
+import com.gather.ganttcalendar.data.DayBadge
 import com.gather.ganttcalendar.data.HolidayData
 import com.gather.ganttcalendar.data.ScheduleRepository
 import com.gather.ganttcalendar.model.GanttBar
@@ -182,7 +183,7 @@ object GanttRenderer {
         day: Int,
         monthStart: Long,
         today: Long,
-        isWorkday: Boolean?
+        badge: DayBadge?
     ) {
         val isToday = monthStart + (day - 1) == today
         cell.setTextViewText(R.id.tvDay, day.toString())
@@ -199,15 +200,20 @@ object GanttRenderer {
 
         // 「休 / 班」角标：法定节假日、调休补班日，以及数据覆盖年份里的普通周末。
         // 普通工作日与数据没覆盖到的年份不画，宁可空着也不猜
-        if (isWorkday == null) {
+        if (badge == null) {
             cell.setViewVisibility(R.id.tvBadge, View.GONE)
         } else {
+            val isWorkday = badge == DayBadge.WORKDAY
             cell.setTextViewText(R.id.tvBadge, if (isWorkday) "班" else "休")
             cell.setTextColor(
                 R.id.tvBadge,
                 ContextCompat.getColor(
                     context,
-                    if (isWorkday) R.color.workdayBadgeText else R.color.holidayBadgeText
+                    when (badge) {
+                        DayBadge.HOLIDAY -> R.color.holidayBadgeText
+                        DayBadge.WEEKEND -> R.color.weekendBadgeText
+                        DayBadge.WORKDAY -> R.color.workdayBadgeText
+                    }
                 )
             )
             cell.setViewVisibility(R.id.tvBadge, View.VISIBLE)

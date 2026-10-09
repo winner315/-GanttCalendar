@@ -4,6 +4,7 @@ import android.content.Context
 import com.gather.ganttcalendar.R
 import org.json.JSONObject
 import java.io.File
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 
@@ -15,7 +16,10 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * 取值优先级：联网下载到 filesDir 的当年数据 > 随 APK 打包的内置数据。
  * 两者格式一致，所以同一个 [parse] 就够用。数据是静态的：每年 11 月国务院办公厅发布下一年
- * 安排后更新一次，平时不会变。查不到数据的年份**不猜**（不按「周末即休息」瞎标），留空。
+ * 安排后更新一次，平时不会变。
+ *
+ * 标注口径见 [badgesInRange]：节假日数据优先，其次才是「普通周末算休息」——
+ * 且后者只在数据覆盖到的年份生效，没数据的年份留空，不猜。
  */
 object HolidayData {
     private const val CACHE_PREFIX = "holiday-"
@@ -57,6 +61,48 @@ object HolidayData {
         }
         return out
     }
+
+    /**
+     * 当月的「休 / 班」标注：key 是 epochDay，value 为 true 表示补班、false 表示休息。
+     * 没被标注的日子（普通工作日）不在表里。
+     */
+    fun badgesInRange(context: Context, startEpoch: Long, endEpoch: Long): Map<Long, Boolean> {
+        val coveredYears = HashSet<Int>()
+        val firstYear = LocalDate.ofEpochDay(startEpoch).year
+        val lastYear = LocalDate.ofEpochDay(endEpoch).year
+        for (year in firstYear..lastYear) {
+            // 这一年有数据（内置或已下载）才敢把普通周末当休息 —— 否则那天可能正好是补班
+            if (forYear(context, year).isNotEmpty()) coveredYears += year
+        }
+        return badges(inRange(context, startEpoch, endEpoch), coveredYears, startEpoch, endEpoch)
+    }
+
+    /**
+     * [badgesInRange] 的纯计算部分，便于单测。
+     * 优先级：节假日数据 > 普通周末（仅在 [coveredYears] 覆盖到的年份适用）。
+     */
+    fun badges(
+        data: Map<Long, Holiday>,
+        coveredYears: Set<Int>,
+        startEpoch: Long,
+        endEpoch: Long
+    ): Map<Long, Boolean> {
+        val out = HashMap<Long, Boolean>()
+        var epochDay = startEpoch
+        while (epochDay <= endEpoch) {
+            val date = LocalDate.ofEpochDay(epochDay)
+            val holiday = data[epochDay]
+            when {
+                holiday != null -> out[epochDay] = holiday.isWorkday
+                date.year in coveredYears && isWeekend(date) -> out[epochDay] = false
+            }
+            epochDay++
+        }
+        return out
+    }
+
+    private fun isWeekend(date: LocalDate): Boolean =
+        date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY
 
     /** 保存联网下载的原始 JSON；解析不出内容则视为无效、不落盘。[return] 是否写入成功 */
     fun saveDownloaded(context: Context, year: Int, json: String): Boolean {

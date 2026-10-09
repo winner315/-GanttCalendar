@@ -42,6 +42,36 @@ class HolidayDataTest {
         assertTrue(map.containsKey(epoch("2026-01-01")))
     }
 
+    @Test
+    fun `badges 标出法定假日与补班日`() {
+        // 2026-10-01 周四（休）、10-10 周六（补班）、10-12 周一（普通工作日）
+        val data = HolidayData.parse(
+            """{"days":[{"name":"国庆节","date":"2026-10-01","isOffDay":true},
+                        {"name":"国庆节","date":"2026-10-10","isOffDay":false}]}"""
+        )
+        val badges = HolidayData.badges(data, setOf(2026), epoch("2026-10-01"), epoch("2026-10-12"))
+        assertEquals(false, badges[epoch("2026-10-01")])
+        assertTrue("补班日即使落在周六也要标「班」", badges.getValue(epoch("2026-10-10")))
+        assertTrue("普通周一不标", !badges.containsKey(epoch("2026-10-12")))
+    }
+
+    @Test
+    fun `badges 在数据覆盖的年份里把普通周末标成休息`() {
+        // 2026-10-17/18 是普通周六日，10-11 是普通周日
+        val badges = HolidayData.badges(emptyMap(), setOf(2026), epoch("2026-10-11"), epoch("2026-10-31"))
+        assertEquals(false, badges[epoch("2026-10-11")])
+        assertEquals(false, badges[epoch("2026-10-17")])
+        assertEquals(false, badges[epoch("2026-10-18")])
+        assertTrue("普通工作日不标", !badges.containsKey(epoch("2026-10-19")))
+    }
+
+    @Test
+    fun `badges 对没有数据的年份不猜`() {
+        // 2027 年数据还没发布：周末也不标，免得把补班的周六错标成休息
+        val badges = HolidayData.badges(emptyMap(), setOf(2025, 2026), epoch("2027-01-02"), epoch("2027-01-31"))
+        assertTrue("没数据的年份不该有任何标注", badges.isEmpty())
+    }
+
     /**
      * 内置数据自检：直接读 res/raw 原文断言真实日期，防止手抄/合并时把日期写错。
      * JVM 单测的工作目录是 app/，所以用相对路径取资源文件。

@@ -9,7 +9,6 @@ import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import com.gather.ganttcalendar.R
-import com.gather.ganttcalendar.data.Holiday
 import com.gather.ganttcalendar.data.HolidayData
 import com.gather.ganttcalendar.data.ScheduleRepository
 import com.gather.ganttcalendar.model.GanttBar
@@ -53,8 +52,9 @@ object GanttRenderer {
         val today = DateUtils.todayEpochDay()
 
         val monthEnd = DateUtils.monthEndEpoch(year, month)
-        // 节假日只查当月一次，渲染路径不联网（联网更新在 HolidaySync，落在 filesDir 里）
-        val holidays = HolidayData.inRange(context, monthStart, monthEnd)
+        // 当月的「休/班」标注查一次：法定节假日、调休补班日，以及数据覆盖年份里的普通周末。
+        // 渲染路径不联网（联网更新在 HolidaySync，落在 filesDir 里）
+        val badges = HolidayData.badgesInRange(context, monthStart, monthEnd)
 
         val repo = ScheduleRepository(context)
         val schedules = repo.getInRange(monthStart, monthEnd)
@@ -105,7 +105,7 @@ object GanttRenderer {
             for (col in 0 until DAYS_PER_WEEK) {
                 val day = weekFirstDay + col
                 val cell = RemoteViews(context.packageName, R.layout.widget_cell)
-                if (day in 1..days) bindDay(context, cell, day, monthStart, today, holidays[monthStart + day - 1])
+                if (day in 1..days) bindDay(context, cell, day, monthStart, today, badges[monthStart + day - 1])
                 row.addView(R.id.weekCells, cell)
             }
             for (lane in 0 until laneCount) {
@@ -182,7 +182,7 @@ object GanttRenderer {
         day: Int,
         monthStart: Long,
         today: Long,
-        holiday: Holiday?
+        isWorkday: Boolean?
     ) {
         val isToday = monthStart + (day - 1) == today
         cell.setTextViewText(R.id.tvDay, day.toString())
@@ -197,16 +197,17 @@ object GanttRenderer {
         )
         cell.setInt(R.id.tvDay, "setBackgroundColor", Color.TRANSPARENT)
 
-        // 「休 / 班」角标：没有数据的年月不画（不按「周末即休息」猜，宁可空着）
-        if (holiday == null) {
+        // 「休 / 班」角标：法定节假日、调休补班日，以及数据覆盖年份里的普通周末。
+        // 普通工作日与数据没覆盖到的年份不画，宁可空着也不猜
+        if (isWorkday == null) {
             cell.setViewVisibility(R.id.tvBadge, View.GONE)
         } else {
-            cell.setTextViewText(R.id.tvBadge, if (holiday.isWorkday) "班" else "休")
+            cell.setTextViewText(R.id.tvBadge, if (isWorkday) "班" else "休")
             cell.setTextColor(
                 R.id.tvBadge,
                 ContextCompat.getColor(
                     context,
-                    if (holiday.isWorkday) R.color.workdayBadgeText else R.color.holidayBadgeText
+                    if (isWorkday) R.color.workdayBadgeText else R.color.holidayBadgeText
                 )
             )
             cell.setViewVisibility(R.id.tvBadge, View.VISIBLE)

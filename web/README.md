@@ -7,18 +7,27 @@
 
 ## 启动
 
+**桌面快捷方式（推荐）**：`assets\make-shortcut.bat` 会在桌面创建「排期甘特图」——
+双击即启服务并打开浏览器，服务窗口最小化在任务栏（关掉它即停止服务）。
+
+**命令行**：
+
 ```bat
-:: 双击 start.bat，或手动：
+start.bat          :: 与快捷方式等价：起服务 + 等端口就绪 + 打开浏览器
+:: 或手动
 npm install
 npm run dev        :: http://localhost:5174
 ```
 
-构建静态产物（可直接双击 `dist/index.html` 打开，路由用的是 hash 模式）：
-
-```bat
-npm run build
-npm run preview
-```
+> ⚠️ **不要**双击 `dist/index.html` 直接打开。
+> 实测现代 Chrome 下 `file://` 打开会因为 CORS 拒载 `type="module"` 脚本与样式表
+> （origin 为 `null`），页面白屏 —— 与 IndexedDB 无关，`file://` 下 IndexedDB 反而是可用的。
+> 静态产物要走本地服务器：
+>
+> ```bat
+> npm run build
+> npm run preview    :: http://localhost:4173
+> ```
 
 ## 功能
 
@@ -39,6 +48,9 @@ npm run preview
 - 节假日缓存与同步时间戳：IndexedDB 的 `gantt-calendar/meta`
 
 清理：浏览器开发者工具 → Application → Storage → Clear site data；或换台机器时先「导出 JSON」再导入。
+
+> `file://` 下 origin 是 `null`，与 `http://localhost:5174` 是**两个独立存储**，
+> 这也是必须走本地服务的原因之一 —— 换端口/换协议都会看到「数据不见了」，实际是换了库。
 换浏览器 / 换设备 / 用隐私模式打开都是各自独立的数据，不会同步。
 
 > 浏览器禁用了本地存储（隐私模式、站点数据被禁）时页面照常能用，但顶栏会提示「数据刷新后会丢失」。
@@ -74,7 +86,28 @@ src/
   api/             holidaySync.js（holiday-cn 拉取 + 24h 节流）
   data/            holidays.json（内置节假日，2025–2026）
 e2e/               verify.mjs（Playwright 端到端验收，94 项）
+assets/            桌面快捷方式相关：图标、生成脚本、快捷方式名
 ```
+
+### 桌面快捷方式怎么做的
+
+三个脚本，改完各自重跑一次即可（都已跑过，图标与快捷方式已在位）：
+
+```bat
+powershell -NoProfile -File assets\make-icon.ps1       :: 生成 assets\gantt.ico
+powershell -NoProfile -File assets\make-shortcut.ps1   :: 在桌面创建快捷方式
+```
+
+两个绕不开的 Windows 坑，脚本里都按规避方式写好了：
+
+- **PowerShell 5.1 按 ANSI 读 `.ps1` 和解码命令行参数** —— 脚本里写中文注释会直接把文件读坏，
+  参数传中文名会变成乱码。所以脚本正文全用 ASCII 注释，
+  快捷方式的中文名放在 UTF-8 文件 `assets\shortcut-name.txt` 里按指定编码读。
+- **`.bat` 必须 CRLF 换行** —— 带 `goto` 标签的批处理用 LF 换行会被 cmd 当路径，
+  直接报「找不到文件」。已加 `.gitattributes`（`*.bat text eol=crlf`）固定住，
+  避免下次 checkout 又变回 LF。
+
+快捷方式名默认为「排期甘特图」，想改就编辑 `assets\shortcut-name.txt` 再重跑 `make-shortcut.ps1`。
 
 ## 测试
 

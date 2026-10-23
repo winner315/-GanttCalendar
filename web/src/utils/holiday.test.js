@@ -6,6 +6,7 @@ import {
   WEEKEND,
   WORKDAY,
   badgeColorVar,
+  isRest,
   badgeText,
   badges,
   badgesInRange,
@@ -212,9 +213,25 @@ describe('角标文案与颜色', () => {
     expect(badgeText(undefined)).toBe('')
   })
 
-  it('三态各有自己的颜色变量', () => {
-    expect(badgeColorVar(HOLIDAY)).toBe('--holiday-badge-text')
-    expect(badgeColorVar(WEEKEND)).toBe('--weekend-badge-text')
+  it('休息的两态共用一种默认色，补班单独一色', () => {
+    expect(badgeColorVar(HOLIDAY)).toBe('--rest-badge-text')
+    expect(badgeColorVar(WEEKEND)).toBe('--rest-badge-text')
     expect(badgeColorVar(WORKDAY)).toBe('--workday-badge-text')
+  })
+
+  it('无法识别的值按休息色处理（不返回 undefined 变量名）', () => {
+    expect(badgeColorVar(undefined)).toBe('--rest-badge-text')
+  })
+})
+
+describe('isRest', () => {
+  it('法定假与普通周末都算休息', () => {
+    expect(isRest(HOLIDAY)).toBe(true)
+    expect(isRest(WEEKEND)).toBe(true)
+  })
+
+  it('补班不算休息，无角标也不算', () => {
+    expect(isRest(WORKDAY)).toBe(false)
+    expect(isRest(undefined)).toBe(false)
   })
 })

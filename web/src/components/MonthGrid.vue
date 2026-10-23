@@ -13,7 +13,11 @@
             v-for="(cell, ci) in week.cells"
             :key="ci"
             class="cell"
-            :class="{ 'cell--today': cell.isToday, 'cell--outside': !cell.inMonth }"
+            :class="{
+              'cell--today': cell.isToday,
+              'cell--outside': !cell.inMonth,
+              'cell--rest': isRest(cell.badge),
+            }"
             :data-day="cell.dayNumber"
           >
             <template v-if="cell.inMonth">
@@ -59,7 +63,7 @@
 import { computed, ref } from 'vue'
 import { WEEKDAYS, daysInMonth, firstDayOffset, monthStart, toDayNumber, todayDayNumber } from '../utils/date.js'
 import { calculateBars, daysFromPixels, laneCount as countLanes, moveBy, resizeEnd } from '../utils/gantt.js'
-import { badgeColorVar, badgeText } from '../utils/holiday.js'
+import { badgeColorVar, badgeText, isRest } from '../utils/holiday.js'
 import { colorOf, textColorOn } from '../utils/palette.js'
 
 const props = defineProps({
@@ -291,6 +295,12 @@ function badgeTitle(badge) {
 
 .cell--outside {
   background: #fafafa;
+}
+
+/* 休息日（法定假与周末同色）格子铺一层淡底，扫一眼就知道哪些天不用上班。
+   放在 .cell--today 之前：今天要盖过休息底色，否则「今天」看不出来 */
+.cell--rest {
+  background: var(--rest-cell-bg);
 }
 
 .cell--today {

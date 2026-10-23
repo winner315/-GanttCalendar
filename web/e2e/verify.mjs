@@ -130,14 +130,37 @@ const badges = await page.evaluate(() => {
     const badge = cell.querySelector('.cell-badge')
     const day = cell.querySelector('.cell-day')?.textContent.trim()
     if (!badge || !day) continue
-    out[day] = { text: badge.textContent.trim(), color: getComputedStyle(badge).color }
+    out[day] = {
+      text: badge.textContent.trim(),
+      color: getComputedStyle(badge).color,
+      rest: cell.classList.contains('cell--rest'),
+      bg: getComputedStyle(cell).backgroundColor,
+    }
   }
   return out
 })
-check('10-01 标「休」且为法定假红', badges['1']?.text === '休' && badges['1']?.color === 'rgb(217, 48, 37)', JSON.stringify(badges['1']))
-check('10-10（周六补班）标「班」且为蓝', badges['10']?.text === '班' && badges['10']?.color === 'rgb(26, 115, 232)', JSON.stringify(badges['10']))
-check('10-11（普通周日）标「休」且为灰', badges['11']?.text === '休' && badges['11']?.color === 'rgb(128, 134, 139)', JSON.stringify(badges['11']))
-check('10-12（普通周一）不标', badges['12'] === undefined)
+const REST_GRAY = 'rgb(128, 134, 139)'
+const WORK_BLUE = 'rgb(26, 115, 232)'
+const REST_BG = 'rgb(238, 240, 242)'
+
+check('10-01 法定假标「休」', badges['1']?.text === '休', JSON.stringify(badges['1']))
+check('10-11（普通周日）标「休」', badges['11']?.text === '休', JSON.stringify(badges['11']))
+check(
+  '法定假与普通周末的「休」是同一种默认色',
+  badges['1']?.color === REST_GRAY && badges['11']?.color === REST_GRAY,
+  `${badges['1']?.color} vs ${badges['11']?.color}`
+)
+check('10-10（周六补班）标「班」且为蓝', badges['10']?.text === '班' && badges['10']?.color === WORK_BLUE, JSON.stringify(badges['10']))
+check('法定假与周末的格子铺同一层休息底色', badges['1']?.bg === REST_BG && badges['11']?.bg === REST_BG, `${badges['1']?.bg} vs ${badges['11']?.bg}`)
+check('补班日格子不铺休息底色', badges['10']?.rest === false && badges['10']?.bg !== REST_BG, JSON.stringify(badges['10']))
+const mondayRest = await page.evaluate(() => {
+  const cell = document.querySelector('.cell[data-day] .cell-day')
+  for (const c of document.querySelectorAll('.cell[data-day]')) {
+    if (c.querySelector('.cell-day')?.textContent.trim() === '12') return c.classList.contains('cell--rest')
+  }
+  return null
+})
+check('10-12（普通周一）不标角标也不铺底色', badges['12'] === undefined && mondayRest === false, `badge=${JSON.stringify(badges['12'])} rest=${mondayRest}`)
 check('10-05~10-07 法定假也标了「休」', badges['5']?.text === '休' && badges['7']?.text === '休')
 
 await page.screenshot({ path: `${SHOTS}/01-月视图.png` })
@@ -268,6 +291,19 @@ check('周视图日期连续', weekLabels.length === 7 && new Set(weekLabels).si
 check('默认落在今天那一周', weekLabels[0] === '10月19日' && weekLabels[6] === '10月25日', weekLabels.join(' '))
 check('本周无日程时给空状态提示', (await page.locator('.week-view .empty').isVisible()))
 check('本周无日程时不画色带', (await page.locator('.week-view .seg').count()) === 0)
+// 10/24 周六、10/25 周日是休息日 → 铺底色；10/23 是今天（周五）→ 今天的蓝底要盖过休息底色
+const weekCellStyles = await page.evaluate(() =>
+  [...document.querySelectorAll('.week-view .day')].map((el) => ({
+    label: el.querySelector('.day-date').textContent.trim(),
+    today: el.classList.contains('day--today'),
+    rest: el.classList.contains('day--rest'),
+    bg: getComputedStyle(el).backgroundColor,
+  }))
+)
+const sat = weekCellStyles.find((d) => d.label === '10月24日')
+const fri = weekCellStyles.find((d) => d.label === '10月23日')
+check('周视图里的周末铺休息底色', sat?.rest === true && sat?.bg === REST_BG, JSON.stringify(sat))
+check('今天不是休息日时不铺休息底色', fri?.today === true && fri?.rest === false, JSON.stringify(fri))
 await page.screenshot({ path: `${SHOTS}/04-周视图-今天这周.png` })
 
 // 往前翻一周 → 10/12~10/18，联调测试（10/12~10/15）应完整出现
@@ -300,9 +336,63 @@ check('年视图有 12 个缩略月', (await page.locator('.mini').count()) === 
 check('年视图标题显示年份', (await page.locator('.range-title').textContent()) === '2026年')
 const counts = await page.locator('.mini-count').allTextContents()
 check('缩略月标出了日程条数', counts.length > 0, counts.join(' '))
+
+/**
+ * 年视图格子的颜色细带。10 月此时是：版本迭代（蓝）10/07~10/12 + 联调测试V2（红）10/08~10/15，
+ * 10/08~10/12 这五天同时被两条命中 → 该格子应有两段色。
+ * （这里就是之前只画第一种颜色的那个 bug 的回归点。）
+ */
+const miniCues = await page.evaluate(() => {
+  const out = []
+  const mini = document.querySelectorAll('.mini')[9] // 10 月
+  for (const cell of mini.querySelectorAll('.mini-cell')) {
+    const day = cell.querySelector('.mini-day')?.textContent.trim()
+    const cues = [...cell.querySelectorAll('.mini-cue')].map((el) => getComputedStyle(el).backgroundColor)
+    if (day && cues.length) out.push({ day: Number(day), cues })
+  }
+  return out
+})
+const day7 = miniCues.find((c) => c.day === 7)
+const day8 = miniCues.find((c) => c.day === 8)
+check('年视图重叠的两天画两段色，不是只画第一种', day8?.cues.length === 2 && day8?.cues.length === 2, JSON.stringify(day8))
+check('年视图两段色分别是蓝与红', day8?.cues[0] === 'rgb(76, 141, 255)' && day8?.cues[1] === 'rgb(255, 107, 107)', JSON.stringify(day8?.cues))
+// 版本迭代 10/07 起、联调测试 10/08 起，所以 7 号只被一条命中
+check('只被一条命中的日子只有一段色', day7?.cues.length === 1 && day7?.cues[0] === 'rgb(76, 141, 255)', JSON.stringify(day7))
 await page.screenshot({ path: `${SHOTS}/06-年视图.png` })
 
-// 点缩略月跳到月视图
+/**
+ * 再加一条与现有日程重叠的，确认三段色也画得出来。
+ * 加完立刻删掉：后面的列表页/备份用例都按 2 条在断言，不能留下这条数据。
+ */
+await page.locator('.toolbar .ant-radio-button-wrapper', { hasText: '月' }).click()
+await page.waitForTimeout(300)
+await addSchedule('第三条彩带', '2026-10-10', '2026-10-10', 4)
+await page.locator('.toolbar .ant-radio-button-wrapper', { hasText: '年' }).click()
+await page.waitForTimeout(400)
+const cueCount3 = await page.evaluate(() => {
+  const mini = document.querySelectorAll('.mini')[9]
+  for (const cell of mini.querySelectorAll('.mini-cell')) {
+    if (cell.querySelector('.mini-day')?.textContent.trim() === '10') return cell.querySelectorAll('.mini-cue').length
+  }
+  return 0
+})
+check('同一天三条日程画出三段色', cueCount3 === 3, `${cueCount3} 段`)
+await page.screenshot({ path: `${SHOTS}/06-年视图-多色.png` })
+
+await page.locator('.mini').nth(9).click()
+await page.waitForTimeout(400)
+await page.locator('.seg', { hasText: '第三条彩带' }).first().click()
+await page.waitForSelector('.ant-modal-content')
+await page.locator('.ant-modal-content button', { hasText: /^删\s*除$/ }).click()
+await page.locator('.ant-popconfirm button', { hasText: /^删\s*除$/ }).click()
+await page.waitForTimeout(400)
+check('删掉第三条后恢复 2 条（后续用例依赖）', (await readDb()).length === 2, `${(await readDb()).length} 条`)
+check('从年视图点缩略月跳到了月视图', (await page.locator('.month').count()) === 1)
+check('跳过去的是 10 月', (await page.locator('.range-title').textContent()) === '2026年10月')
+
+// 回年视图，单独验证「点缩略月跳月」这条路径（上一步是从月视图切过去的，不算）
+await page.locator('.toolbar .ant-radio-button-wrapper', { hasText: '年' }).click()
+await page.waitForTimeout(400)
 await page.locator('.mini').nth(9).click()
 await page.waitForTimeout(400)
 check('点 10 月缩略图跳到月视图的 2026年10月', (await page.locator('.range-title').textContent()) === '2026年10月')

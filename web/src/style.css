@@ -20,10 +20,12 @@
   --page-bg: #f5f6f8;
   --header-bg: #ffffff;
 
-  /* 角标三色：法定假红、普通周末灰、调休补班蓝，三者互不混淆 */
-  --holiday-badge-text: #d93025;
-  --weekend-badge-text: #80868b;
+  /* 角标两色：休息日（法定假与周末不区分）灰、调休补班蓝 */
+  --rest-badge-text: #80868b;
   --workday-badge-text: #1a73e8;
+  /* 休息日格子底色：法定假与周末铺同一层，主打「这天不用上班」一眼可见 */
+  --rest-cell-bg: #eef0f2;
+  --error-text: #d93025;
 }
 
 * {

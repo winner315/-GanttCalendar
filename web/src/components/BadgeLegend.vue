@@ -2,8 +2,7 @@
   <div class="legend">
     <div class="group">
       <span class="title">角标</span>
-      <span class="item"><b :style="{ color: 'var(--holiday-badge-text)' }">休</b>法定节假日</span>
-      <span class="item"><b :style="{ color: 'var(--weekend-badge-text)' }">休</b>周末</span>
+      <span class="item"><b :style="{ color: 'var(--rest-badge-text)' }">休</b>休息日<span class="sub">（含法定节假日与周末）</span></span>
       <span class="item"><b :style="{ color: 'var(--workday-badge-text)' }">班</b>调休补班</span>
       <span v-if="!dataCovered" class="hint">该年份的节假日数据未覆盖，角标留空不猜</span>
     </div>
@@ -51,6 +50,10 @@ defineProps({
 
 .item b {
   font-weight: 600;
+}
+
+.sub {
+  color: #999999;
 }
 
 .dot {

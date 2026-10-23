@@ -153,7 +153,7 @@ function onCancel() {
 .err {
   margin-top: 4px;
   font-size: 12px;
-  color: var(--holiday-badge-text);
+  color: var(--error-text);
 }
 
 .colors {

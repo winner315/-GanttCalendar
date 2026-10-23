@@ -13,12 +13,15 @@
           :class="{
             'mini-cell--outside': !cell.inMonth,
             'mini-cell--today': cell.isToday,
-            'mini-cell--rest': cell.badge && cell.badge !== 'workday',
+            'mini-cell--rest': isRest(cell.badge),
           }"
-          :style="cell.inMonth && colorAtCell(m, cell.dayNumber) ? { background: colorAtCell(m, cell.dayNumber) } : undefined"
           :title="cell.title"
         >
-          <span v-if="cell.inMonth">{{ cell.day }}</span>
+          <span v-if="cell.inMonth" class="mini-day">{{ cell.day }}</span>
+          <!-- 这天的日程色带：一天多条就按条数平分，颜色都看得到 -->
+          <span v-if="cell.colors.length" class="mini-cues">
+            <span v-for="(c, i) in cell.colors" :key="i" class="mini-cue" :style="{ background: c }" />
+          </span>
         </div>
       </div>
     </div>
@@ -30,6 +33,7 @@ import { computed } from 'vue'
 import { daysInMonth, firstDayOffset, formatMonthDay, monthStart, toDayNumber, todayDayNumber } from '../utils/date.js'
 import { calculateBars } from '../utils/gantt.js'
 import { colorOf } from '../utils/palette.js'
+import { isRest } from '../utils/holiday.js'
 const props = defineProps({
   year: { type: Number, required: true },
   schedules: { type: Array, default: () => [] },
@@ -43,8 +47,8 @@ const today = todayDayNumber()
 
 /**
  * 12 个缩略月。每天一个小方块，日程在缩略图上只体现为「有色块」——
- * 细到这个尺寸画不出位置准确的色带，所以用颜色点标出「这天有安排」，
- * 想看清具体排期点进月视图。
+ * 细到这个尺寸画不出位置准确的色带，所以格子底部用一条分段细带上色
+ * （一天多条就按条数平分，几条的颜色都看得到），想看清具体排期点进月视图。
  */
 const months = computed(() =>
   Array.from({ length: 12 }, (_, i) => {
@@ -52,11 +56,12 @@ const months = computed(() =>
     const first = monthStart(props.year, month)
     const last = toDayNumber(props.year, month, daysInMonth(props.year, month))
     const bars = calculateBars(props.schedules, first, last)
-    // 日历格子上该用哪个颜色：取这天命中的第一条日程
-    const colorAt = new Map()
+    // 这天命中的日程颜色，一天多条全都留着（按开始日排序，跨这天时段落的顺序）
+    const colorsAt = new Map()
     for (const bar of bars) {
       for (let d = bar.startDay; d <= bar.endDay; d++) {
-        if (!colorAt.has(d)) colorAt.set(d, bar.schedule.color)
+        if (!colorsAt.has(d)) colorsAt.set(d, [])
+        colorsAt.get(d).push(bar.schedule.color)
       }
     }
     const offset = firstDayOffset(props.year, month)
@@ -76,6 +81,7 @@ const months = computed(() =>
         day: inMonth ? dayNumber - first + 1 : null,
         isToday: dayNumber === today,
         badge,
+        colors: inMonth ? (colorsAt.get(dayNumber) ?? []).map(colorOf) : [],
         title: inMonth
           ? [
               formatMonthDay(dayNumber),
@@ -91,16 +97,9 @@ const months = computed(() =>
       month,
       count: new Set(bars.map((b) => b.schedule.id)).size,
       cells,
-      colorAt,
     }
   })
 )
-
-/** 缩略格子上的日程色：仅当这天有日程时画，一天多条的取第一条的颜色 */
-function colorAtCell(monthData, dayNumber) {
-  const color = monthData.colorAt.get(dayNumber)
-  return color === undefined ? undefined : colorOf(color)
-}
 </script>
 
 <style scoped>
@@ -166,9 +165,9 @@ function colorAtCell(monthData, dayNumber) {
   color: transparent;
 }
 
-/* 休息日底色略灰，与角标口径一致（补班日不染色） */
+/* 休息日底色，与月/周视图同一变量（补班日不染色） */
 .mini-cell--rest {
-  background: #f0f1f3;
+  background: var(--rest-cell-bg);
 }
 
 .mini-cell--today {
@@ -176,5 +175,27 @@ function colorAtCell(monthData, dayNumber) {
   background: var(--today-bg);
   color: var(--today-text);
   font-weight: 600;
+}
+
+/* 日期数字稍上移，给底部色带留位置；数字本身仍居中可读 */
+.mini-day {
+  transform: translateY(-2px);
+}
+
+.mini-cues {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+  height: 3px;
+  display: flex;
+  gap: 1px;
+  border-radius: 1.5px;
+  overflow: hidden;
+}
+
+.mini-cue {
+  flex: 1;
+  min-width: 0;
 }
 </style>

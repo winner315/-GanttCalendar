@@ -151,9 +151,19 @@ export function badgeText(badge) {
   return badge === WORKDAY ? '班' : '休'
 }
 
-/** 角标对应的 CSS 颜色变量名 */
+/**
+ * 角标对应的 CSS 颜色变量名。
+ * 休息的两态（法定假 HOLIDAY / 普通周末 WEEKEND）**用同一种默认色**：
+ * 使用者关心的是「这天休不休」，法定假还是周末是次要信息，
+ * 分成红灰两色反而让人以为红色那几天有别的含义。
+ * 补班 WORKDAY 仍单独用蓝色 —— 它和休息是相反的语义，混色会误导。
+ */
 export function badgeColorVar(badge) {
-  if (badge === HOLIDAY) return '--holiday-badge-text'
   if (badge === WORKDAY) return '--workday-badge-text'
-  return '--weekend-badge-text'
+  return '--rest-badge-text'
+}
+
+/** 是否算休息日（法定假与普通周末同口径），用来铺格子底色 */
+export function isRest(badge) {
+  return badge === HOLIDAY || badge === WEEKEND
 }

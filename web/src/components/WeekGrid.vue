@@ -1,7 +1,13 @@
 <template>
   <div class="week-view">
     <div class="days">
-      <div v-for="day in days" :key="day.dayNumber" class="day" :class="{ 'day--today': day.isToday }" :data-day="day.dayNumber">
+      <div
+        v-for="day in days"
+        :key="day.dayNumber"
+        class="day"
+        :class="{ 'day--today': day.isToday, 'day--rest': isRest(day.badge) }"
+        :data-day="day.dayNumber"
+      >
         <div class="day-head">
           <span class="day-weekday">周{{ day.weekday }}</span>
           <span class="day-date">{{ day.label }}</span>
@@ -39,7 +45,7 @@
 import { computed } from 'vue'
 import { WEEKDAYS, formatMonthDay, fromDayNumber, todayDayNumber, weekdayIndex } from '../utils/date.js'
 import { calculateBars, laneCount as countLanes } from '../utils/gantt.js'
-import { badgeColorVar, badgeText } from '../utils/holiday.js'
+import { badgeColorVar, badgeText, isRest } from '../utils/holiday.js'
 import { colorOf, textColorOn } from '../utils/palette.js'
 
 const props = defineProps({
@@ -130,6 +136,11 @@ function badgeTitle(badge) {
 
 .day:last-child {
   border-right: none;
+}
+
+/* 休息日铺淡底（法定假与周末同色），放在 .day--today 之前让「今天」盖过它 */
+.day--rest {
+  background: var(--rest-cell-bg);
 }
 
 .day--today {

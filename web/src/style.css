@@ -1,0 +1,47 @@
+/* 全局样式：配色取自 Android 版 res/values/colors.xml，两端观感保持一致 */
+:root {
+  /* 日程 8 色（与原版 ScheduleAdapter.COLOR_RES 一一对应，索引即存储的 color 值） */
+  --c0: #4c8dff;
+  --c1: #ff6b6b;
+  --c2: #f2b737;
+  --c3: #4cc38a;
+  --c4: #9b6bff;
+  --c5: #ff8a3d;
+  --c6: #2fb6c4;
+  --c7: #e85d9c;
+
+  --day-cell-bg: #ffffff;
+  --today-bg: #e8f0fe;
+  --day-text: #333333;
+  --today-text: #1a73e8;
+  --legend-text: #666666;
+  --cell-border: #e0e0e0;
+  --today-border: #a8c7fa;
+  --page-bg: #f5f6f8;
+  --header-bg: #ffffff;
+
+  /* 角标三色：法定假红、普通周末灰、调休补班蓝，三者互不混淆 */
+  --holiday-badge-text: #d93025;
+  --weekend-badge-text: #80868b;
+  --workday-badge-text: #1a73e8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--page-bg);
+  color: var(--day-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC',
+    'Hiragino Sans GB', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}

@@ -1,0 +1,20 @@
+import { chromium } from 'playwright'
+import { mkdirSync } from 'node:fs'
+mkdirSync('e2e/shots', { recursive: true })
+const BASE = process.env.E2E_BASE ?? 'http://localhost:5174'
+const b = await chromium.launch()
+const p = await b.newPage({ viewport: { width: 1280, height: 900 } })
+await p.goto(BASE, { waitUntil: 'networkidle' })
+await p.waitForSelector('.month')
+await p.locator('.toolbar .ant-radio-button-wrapper', { hasText: '周' }).click()
+await p.waitForTimeout(400)
+await p.locator('.toolbar button', { hasText: '‹' }).click()
+await p.waitForTimeout(400)
+await p.screenshot({ path: 'e2e/shots/05-周视图.png' })
+await p.locator('.toolbar .ant-radio-button-wrapper', { hasText: '年' }).click()
+await p.waitForTimeout(400)
+await p.screenshot({ path: 'e2e/shots/06-年视图.png' })
+await p.locator('.toolbar .ant-radio-button-wrapper', { hasText: '月' }).click()
+await p.waitForTimeout(300)
+await p.screenshot({ path: 'e2e/shots/01-月视图.png' })
+await b.close()

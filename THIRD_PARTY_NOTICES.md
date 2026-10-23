@@ -8,6 +8,12 @@
 - 联网更新从 `https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json` 拉取当年与次年的数据
 - 维护：每年 11 月国务院办公厅发布下一年安排后，重新拉取并更新内置文件
 
+### Web 版（`web/`）
+
+- 内置数据 `web/src/data/holidays.json` 与 APK 内置文件同源、同结构、内容一致（均为 2025–2026 共 72 条，逐条比对 `name`/`date`/`isOffDay` 完全相同）
+- 联网更新逻辑（`web/src/api/holidaySync.js`）与 Android 版一致：同一 CDN 地址、同一 24h 节流、失败静默回退内置数据
+- 浏览器端拉取受 CORS 约束，失败不影响功能（角标回退到内置数据）；拉取到的数据缓存在浏览器 IndexedDB 的 `meta` 表中，不落盘到仓库
+
 ### 许可证（MIT）
 
 ```

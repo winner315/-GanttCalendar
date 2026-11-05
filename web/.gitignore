@@ -2,3 +2,18 @@ node_modules
 dist
 .vite
 e2e/shots
+
+# 后端
+.venv
+__pycache__/
+*.pyc
+.env
+.env.e2e
+.pytest_cache/
+
+# 本地备份 JSON（含真实排期，不入库）
+backups/
+
+# 运行时产物
+logs/
+*.bat.bak

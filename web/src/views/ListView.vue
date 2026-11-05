@@ -21,6 +21,17 @@
           <span class="opt-dot" :style="{ background: c }" />{{ COLOR_NAMES[i] }}
         </a-select-option>
       </a-select>
+      <a-select
+        :value="prefs.statusFilter"
+        mode="multiple"
+        placeholder="按状态筛选"
+        allow-clear
+        class="statuses"
+        :max-tag-count="3"
+        @update:value="onStatuses"
+      >
+        <a-select-option v-for="st in STATUSES" :key="st" :value="st">{{ STATUS_LABELS[st] }}</a-select-option>
+      </a-select>
       <a-range-picker
         :value="rangeValue"
         format="YYYY-MM-DD"
@@ -33,8 +44,9 @@
       <a-button type="primary" @click="openCreate">新建日程</a-button>
     </div>
 
-    <div v-if="!scheduleState.persistent" class="warn">
-      浏览器未开放本地存储（或处于隐私模式），本次改动的数据刷新后会丢失。
+    <!-- 后端连不上由顶栏的 BackendAlert 统一提示，这里只管数据本身的问题 -->
+    <div v-if="scheduleState.skippedOnLoad > 0" class="warn">
+      有 {{ scheduleState.skippedOnLoad }} 条数据格式不合法，已跳过未显示。
     </div>
 
     <a-table
@@ -56,6 +68,11 @@
         </template>
         <template v-else-if="column.key === 'color'">
           {{ colorNameOf(record.color) }}
+        </template>
+        <template v-else-if="column.key === 'status'">
+          <span :class="['status-tag', { 'status-tag--done': record.status === STATUS_DONE }]">
+            {{ STATUS_LABELS[record.status] ?? '待办' }}
+          </span>
         </template>
         <template v-else-if="column.key === 'range'">
           {{ formatMonthDay(record.startDay) }} ~ {{ formatMonthDay(record.endDay) }}
@@ -90,10 +107,12 @@ import {
   setColorFilter,
   setKeyword,
   setRangeFilter,
+  setStatusFilter,
 } from '../store/prefs.js'
 import { MS_PER_DAY, formatDay, formatMonthDay, parseDay, spanDays } from '../utils/date.js'
 import { filterSchedules, hasActiveFilter } from '../utils/filter.js'
 import { COLOR_NAMES, PALETTE, colorNameOf, colorOf } from '../utils/palette.js'
+import { STATUS_DONE, STATUSES, STATUS_LABELS } from '../utils/schedule.js'
 
 const dialogOpen = ref(false)
 const editing = ref(null)
@@ -102,6 +121,7 @@ const columns = [
   { title: '标题', dataIndex: 'title', key: 'title', sorter: (a, b) => a.title.localeCompare(b.title, 'zh') },
   { title: '起止日期', dataIndex: 'startDay', key: 'range', sorter: (a, b) => a.startDay - b.startDay || a.endDay - b.endDay },
   { title: '天数', dataIndex: 'days', key: 'days', width: 90, sorter: (a, b) => spanDays(a.startDay, a.endDay) - spanDays(b.startDay, b.endDay) },
+  { title: '状态', dataIndex: 'status', key: 'status', width: 100, sorter: (a, b) => String(a.status).localeCompare(String(b.status)) },
   { title: '颜色', dataIndex: 'color', key: 'color', width: 90, sorter: (a, b) => a.color - b.color },
   { title: '', key: 'action', width: 80 },
 ]
@@ -109,7 +129,13 @@ const columns = [
 const pagination = { pageSize: 20, showSizeChanger: false, hideOnSinglePage: true, showTotal: (t) => `共 ${t} 条` }
 
 const filterActive = computed(() =>
-  hasActiveFilter({ keyword: prefs.keyword, colors: prefs.colorFilter, from: prefs.rangeFrom, to: prefs.rangeTo })
+  hasActiveFilter({
+    keyword: prefs.keyword,
+    colors: prefs.colorFilter,
+    statuses: prefs.statusFilter,
+    from: prefs.rangeFrom,
+    to: prefs.rangeTo,
+  })
 )
 
 /** 筛选后的行（排序交给 antd Table 的 sorter，不改动 store 里的顺序） */
@@ -117,6 +143,7 @@ const rows = computed(() =>
   filterSchedules(scheduleState.schedules, {
     keyword: prefs.keyword,
     colors: prefs.colorFilter,
+    statuses: prefs.statusFilter,
     from: prefs.rangeFrom,
     to: prefs.rangeTo,
   })
@@ -163,6 +190,10 @@ function onColors(value) {
   setColorFilter(Array.isArray(value) ? value : [])
 }
 
+function onStatuses(value) {
+  setStatusFilter(Array.isArray(value) ? value : [])
+}
+
 function onRange(value) {
   if (!value || !value[0] || !value[1]) {
     setRangeFilter(null, null)
@@ -202,7 +233,13 @@ async function onSave(payload) {
 }
 
 async function onDelete(id) {
-  await removeSchedule(id)
+  try {
+    await removeSchedule(id)
+  } catch (e) {
+    // 后端没写成功就别说「已删除」，弹窗也留着让用户重试
+    message.error(e?.message ?? '删除失败')
+    return
+  }
   message.success('已删除')
   dialogOpen.value = false
   editing.value = null
@@ -235,6 +272,10 @@ async function onDelete(id) {
   width: 200px;
 }
 
+.statuses {
+  width: 170px;
+}
+
 .opt-dot {
   display: inline-block;
   width: 10px;
@@ -242,6 +283,23 @@ async function onDelete(id) {
   margin-right: 6px;
   border-radius: 50%;
   vertical-align: middle;
+}
+
+.status-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  background: var(--day-cell-bg);
+  border: 1px solid var(--cell-border);
+}
+
+/* 已完成状态用灰色，与甘特色带「整条置灰」的口径一致 */
+.status-tag--done {
+  background: #ececec;
+  border-color: #b9b9b9;
+  color: #666666;
 }
 
 .count {

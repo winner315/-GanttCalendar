@@ -1,49 +1,105 @@
 @echo off
-chcp 65001 >nul
-cd /d "%~dp0"
-title GanttCalendar Web
-
-echo ============================================
-echo   GanttCalendar Web  (port 5174)
-echo ============================================
-echo.
-
-if not exist "node_modules" (
-  echo [1/3] first run: npm install ...
-  call npm.cmd install
-  if errorlevel 1 (
-    echo [ERROR] npm install failed. Check network / npm registry.
-    pause
-    exit /b 1
-  )
-) else (
-  echo [1/3] dependencies ok
+rem ------ silent self-hide: a direct double-click is relayed to a hidden
+rem window via wscript, so no console ever flashes ------------------------
+rem NOTE: keep ALL echoed text ASCII here. Under cmd, multi-byte output
+rem (e.g. chcp 65001 + Chinese) can restart cmd's line reparse mid-byte,
+rem which surfaces as "xxx is not recognized" or "... unexpected". ASCII
+rem echo/rem lines guarantee this script parses reliably.
+if not "%~1"=="hidden" (
+  if not exist logs mkdir logs
+  start "" wscript.exe "%~dp0run-hidden.vbs" start
+  exit /b
 )
 
-echo [2/3] starting dev server ...
-:: Minimized on purpose: a double-click from the desktop shortcut should not
-:: dump a console over the screen. Restore it from the taskbar to read the log,
-:: or close that window to stop the server.
-start "GanttCalendar Web - dev server" /min cmd /c "cd /d %~dp0 && npm.cmd run dev"
+cd /d "%~dp0"
+title GanttCalendar Web (hidden)
 
-echo [3/3] waiting for http://localhost:5174 ...
-:: Poll before handing over: vite opens the browser itself once it is ready,
-:: so this is only here to report a real failure instead of a blank tab.
+echo ============================================
+echo   GanttCalendar Web   (api 8010 + web 5174)
+echo ============================================
+echo.
+echo   All windows hidden. Logs: %~dp0logs\*.log
+
+rem ---------- 1/4 frontend deps ----------
+if not exist "node_modules" (
+  echo [1/4] first run: npm install ...
+  call npm.cmd install
+  if errorlevel 1 (
+    echo [ERROR] npm install failed. See logs\startup.log
+    goto :err
+  )
+) else (
+  echo [1/4] frontend deps ok
+)
+
+rem ---------- 2/4 backend venv + .env ----------
+if not exist ".venv\Scripts\python.exe" (
+  echo [2/4] first run: creating .venv and installing backend deps ...
+  python -m venv .venv
+  if errorlevel 1 (
+    echo [ERROR] python -m venv failed
+    goto :err
+  )
+  ".venv\Scripts\python.exe" -m pip install -r requirements.txt
+  if errorlevel 1 (
+    echo [ERROR] pip install failed
+    goto :err
+  )
+) else (
+  echo [2/4] backend venv ok
+)
+
+if not exist ".env" (
+  echo.
+  echo [WARN] web\.env not found - backend cannot connect to MySQL.
+  echo.
+) else (
+  echo [2/4] .env found
+)
+
+rem ---------- 3/4 backend on 8010 ----------
+echo [3/4] check port 8010 ...
+netstat -ano | findstr ":8010" | findstr "LISTENING" >nul
+if not errorlevel 1 (
+  echo   backend already running, reuse.
+) else (
+  echo   starting backend uvicorn (hidden) ...
+  start "" wscript.exe "%~dp0run-hidden.vbs" api
+)
+
+rem ---------- 4/4 frontend on 5174 ----------
+echo [4/4] check port 5174 ...
+netstat -ano | findstr ":5174" | findstr "LISTENING" >nul
+if not errorlevel 1 (
+  echo   frontend already running, reuse.
+) else (
+  echo   starting dev server (hidden) ...
+  start "" wscript.exe "%~dp0run-hidden.vbs" web
+)
+
+echo.
+echo waiting for services ...
 set /a tries=0
 :wait
 set /a tries+=1
 curl -s -o nul --max-time 1 http://localhost:5174/ && goto ready
 if %tries% geq 60 (
-  echo [ERROR] server did not come up within 60s.
-  echo         Restore the minimized "GanttCalendar Web - dev server" window to see why.
-  pause
-  exit /b 1
+  echo [ERROR] frontend did not come up within 60s. See logs\web-server.log
+  goto :err
 )
-timeout /t 1 /nobreak >nul
+ping -n 2 127.0.0.1 >nul
 goto wait
 
 :ready
 echo.
-echo   Ready: http://localhost:5174
-echo   To stop: close the minimized "GanttCalendar Web - dev server" window.
+echo   Web:  http://localhost:5174
+echo   API:  http://127.0.0.1:8010/api/health
+echo   Logs: %~dp0logs\startup.log / api-server.log / web-server.log
+echo   Stop: Task Manager (ports 8010/5174)
 exit /b 0
+
+:err
+echo.
+echo   Startup FAILED. Inspect logs\*.log
+ping -n 6 127.0.0.1 >nul
+exit /b 1

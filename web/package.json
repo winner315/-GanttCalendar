@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "start:api": ".\\.venv\\Scripts\\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 8010",
+    "db:migrate": ".\\.venv\\Scripts\\python.exe -m server.migrate",
+    "test:api": ".\\.venv\\Scripts\\python.exe -m pytest server/tests -q",
+    "e2e": "node e2e/run-all.mjs"
   },
   "dependencies": {
     "ant-design-vue": "^4.2.6",
@@ -18,6 +22,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
     "fake-indexeddb": "^6.2.2",
+    "mysql2": "^3.15.4",
     "playwright": "^1.64.1",
     "vite": "^8.2.2",
     "vitest": "4.1.11"

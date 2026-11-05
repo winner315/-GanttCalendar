@@ -1,20 +1,50 @@
 /**
  * 端到端验收脚本（Playwright）。跑法：node e2e/verify.mjs
- * 需要 dev server 已起在 5174。
+ * 需要前端 dev server 与后端都已起，且**后端连的是测试库**。
  *
  * 这一步验证的是「浏览器里真的画对了」——单测覆盖不到的渲染与交互：
  * 色带位置/颜色/泳道、休·班角标、跨周跨月裁剪、拖拽改期、搜索、刷新后留存。
  *
- * 两个要点，写错过：
+ * 三个要点，写错过：
  *  1. 一条跨周的日程会被切成**多段**色带（每周一段），所以断言要看段数；
- *  2. 段的位置要相对**所在那一周**度量，不是相对整月 —— 段本身只在自己那一周里定位。
+ *  2. 段的位置要相对**所在那一周**度量，不是相对整月 —— 段本身只在自己那一周里定位；
+ *  3. **库名必须是 *_e2e** —— 本脚本第一件事就是清空 schedule 表，
+ *     库名闸门（见下）是防止误删真实排期的唯一屏障，不要绕过。
+ *
+ * 读库不经过后端 HTTP，而是直接连 MySQL：被测对象不能同时当测量工具，
+ * 否则读接口一坏所有断言一起红，定位难度飙升。
  */
 import { chromium } from 'playwright'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+
+import { loadE2EConfig, guardTestDb, openMysql, clearSchedules, readSchedules } from './_db.mjs'
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5174'
 const SHOTS = 'e2e/shots'
 mkdirSync(SHOTS, { recursive: true })
+
+/**
+ * 把浏览器的"今天"钉死在 2026-10-23（周五）。
+ *
+ * 测试数据是围绕 2026-10 造的，而周视图默认锚"今天所在的那一周"，
+ * 于是不钉时钟的话，跑到下一天这些断言就会红 —— 之前正是这么红的
+ * （写死 10/19~10/25，实际跑在 10/26，周一对不上）。
+ * 钉死之后断言里可以放心写具体的月日，也仍然验证着同一条行为。
+ *
+ * 用 install（不是 setFixedTime）：setFixedTime 让 `Date.now()` **永远不动**，
+ * 而 MonthGrid 用 `Date.now() + SUPPRESS_MS` 抑制拖拽后的误点击 —— 时间不走，
+ * 那个抑制就永不失效，于是拖过一次之后**所有色带都点不开**（实测踩过）。
+ * install 从指定时刻起让时间照常流逝，既有固定的"今天"，又不会把时钟冻住。
+ */
+const FIXED_TODAY = '2026-10-23T10:00:00+08:00'
+/** 2026-10-23 的天数序号（toDayNumber 口径，1970-01-01 = 0） */
+const FIXED_TODAY_DAY = Math.round(Date.UTC(2026, 9, 23) / 86400000)
+
+/* ---------- 库名闸门：必须在任何清库动作之前 ---------- */
+const DB = guardTestDb(loadE2EConfig())
+const db = await openMysql(DB)
+console.log(`[e2e] 目标数据库：${DB.database}（跑完会清空该库的 schedule 表）`)
 
 const results = []
 function check(name, ok, detail = '') {
@@ -24,6 +54,10 @@ function check(name, ok, detail = '') {
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+// 固定"今天"，否则周视图相关断言会随日历变化而失效。
+// resume 让时间照常流逝（见上面的说明），只是起点被挪到了 2026-10-23。
+await page.clock.install({ time: new Date(FIXED_TODAY) })
+await page.clock.resume()
 
 const errors = []
 page.on('console', (msg) => {
@@ -34,14 +68,9 @@ page.on('pageerror', (e) => errors.push(String(e)))
 await page.goto(BASE, { waitUntil: 'networkidle' })
 await page.waitForSelector('.month')
 
-/* ---------- 0. 清空本地数据，保证每次从干净状态跑 ---------- */
-await page.evaluate(
-  () =>
-    new Promise((resolve) => {
-      const req = indexedDB.deleteDatabase('gantt-calendar')
-      req.onsuccess = req.onerror = req.onblocked = () => resolve()
-    })
-)
+/* ---------- 0. 清空测试库，保证每次从干净状态跑 ---------- */
+// 注意：这里**不再**动浏览器 IndexedDB —— 那份老数据是搬进 MySQL 的来源，不能碰。
+await clearSchedules(db)
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('.month')
 
@@ -197,20 +226,8 @@ await page.waitForTimeout(300)
 check('清空搜索后恢复 4 段', (await page.locator('.seg').count()) === 4, `实际 ${await page.locator('.seg').count()}`)
 
 /* ---------- 6. 拖拽改期 ---------- */
-async function readDb() {
-  return page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        const open = indexedDB.open('gantt-calendar')
-        open.onsuccess = () => {
-          const tx = open.result.transaction('schedules', 'readonly')
-          const req = tx.objectStore('schedules').getAll()
-          req.onsuccess = () =>
-            resolve(req.result.map((s) => ({ title: s.title, startDay: s.startDay, endDay: s.endDay })))
-        }
-      })
-  )
-}
+// 直接查 MySQL，不经过后端 HTTP —— 见文件头第 3 条说明
+const readDb = () => readSchedules(db)
 
 const dbBefore = await readDb()
 const target = page.locator('.seg', { hasText: '版本迭代' }).first()
@@ -252,7 +269,8 @@ check('拖动后刷新页面数据仍在', true)
 await page.screenshot({ path: `${SHOTS}/02-拖拽后.png` })
 
 /* ---------- 7. 点色带打开编辑并删除 ---------- */
-await page.locator('.seg', { hasText: '联合测试' }).first().click().catch(() => {})
+// （原先这里先点一次「联合测试」再点「跨月批次」，但库里从来没有「联合测试」这条，
+//  那一步只是白等 30 秒超时；要验的"打开的是对应那条"由下面两条断言覆盖）
 await page.locator('.seg', { hasText: '跨月批次' }).first().click()
 await page.waitForSelector('.ant-modal-content')
 check(
@@ -272,8 +290,9 @@ await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('.month')
 await page.waitForTimeout(500)
 const segsAfterReload = await readSegs()
-check('刷新后数据仍在（IndexedDB 落盘）', segsAfterReload.length === 4, `实际 ${segsAfterReload.length} 段`)
-check('刷新后未出现存储降级告警', (await page.locator('.warn').count()) === 0)
+check('刷新后数据仍在（MySQL 落库）', segsAfterReload.length === 4, `实际 ${segsAfterReload.length} 段`)
+check('后端正常，无「后端未连接」告警', (await page.locator('.backend-alert').count()) === 0)
+check('无脏数据跳过提示', (await page.locator('.warn').count()) === 0)
 check('刷新后仍停在上次月份（偏好持久化）', (await page.locator('.range-title').textContent()) === '2026年10月')
 check('页面无控制台报错', errors.length === 0, errors.slice(0, 3).join(' | '))
 
@@ -287,7 +306,8 @@ check('切到周视图', (await page.locator('.week-view').count()) === 1)
 check('周视图有 7 列日期', (await page.locator('.day').count()) === 7)
 const weekLabels = await page.locator('.day-date').allTextContents()
 check('周视图日期连续', weekLabels.length === 7 && new Set(weekLabels).size === 7, weekLabels.join(' '))
-// 默认锚今天（2026-10-23 周五）所在的那一周：10/19~10/25，这几天本来没有排期
+// 默认锚「今天」（已用 page.clock 钉在 2026-10-23 周五）所在的那一周：10/19~10/25，
+// 这几天本来没有排期
 check('默认落在今天那一周', weekLabels[0] === '10月19日' && weekLabels[6] === '10月25日', weekLabels.join(' '))
 check('本周无日程时给空状态提示', (await page.locator('.week-view .empty').isVisible()))
 check('本周无日程时不画色带', (await page.locator('.week-view .seg').count()) === 0)
@@ -304,6 +324,13 @@ const sat = weekCellStyles.find((d) => d.label === '10月24日')
 const fri = weekCellStyles.find((d) => d.label === '10月23日')
 check('周视图里的周末铺休息底色', sat?.rest === true && sat?.bg === REST_BG, JSON.stringify(sat))
 check('今天不是休息日时不铺休息底色', fri?.today === true && fri?.rest === false, JSON.stringify(fri))
+// 「今天」必须真的是被钉住的那天，否则上面这些断言等于没验
+const todayCell = await page.evaluate(() => {
+  const el = document.querySelector('.week-view .day--today .day-date')
+  return el?.textContent.trim() ?? null
+})
+check('周视图的「今天」就是钉住的那天（时钟生效）', todayCell === '10月23日', String(todayCell))
+check('钉住的今天与天数序号口径一致', Math.round(Date.UTC(2026, 9, 23) / 86400000) === FIXED_TODAY_DAY)
 await page.screenshot({ path: `${SHOTS}/04-周视图-今天这周.png` })
 
 // 往前翻一周 → 10/12~10/18，联调测试（10/12~10/15）应完整出现
@@ -510,7 +537,7 @@ check('导出文件名带日期', /^gantt-backup-\d{8}-\d{4}\.json$/.test(downlo
 
 const exported = JSON.parse(readFileSync(exportPath, 'utf8'))
 check('导出结构：version / exportedAt / schedules', exported.version === 1 && typeof exported.exportedAt === 'string' && Array.isArray(exported.schedules), Object.keys(exported).join(','))
-check('导出 2 条且字段为 title/startDay/endDay/color', exported.schedules.length === 2 && Object.keys(exported.schedules[0]).sort().join(',') === 'color,endDay,startDay,title', JSON.stringify(exported.schedules))
+check('导出 2 条且字段为 title/startDay/endDay/color/status', exported.schedules.length === 2 && Object.keys(exported.schedules[0]).sort().join(',') === 'color,endDay,startDay,status,title', JSON.stringify(exported.schedules))
 
 // 造一份「2 条好的 + 1 条坏的」导入文件
 const badFile = 'e2e/shots/backup-import-mixed.json'
@@ -588,6 +615,7 @@ check('导入的数据刷新后仍在', (await readDb()).length === 2, `${(await
 check('备份流程无控制台报错', errors.length === 0, errors.slice(0, 3).join(' | '))
 
 await browser.close()
+await db.end()
 
 const failed = results.filter((r) => !r.ok)
 console.log(`\n合计 ${results.length} 项，失败 ${failed.length} 项`)

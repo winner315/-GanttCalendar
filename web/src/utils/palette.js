@@ -16,6 +16,20 @@ export function colorNameOf(index) {
 }
 
 /**
+ * 甘特色带的背景色：按任务状态区分。
+ * 「已完成」（done）整条置灰，让扫一眼就知道这条已经收尾；
+ * 其余状态（todo/doing/paused）保留调度色，便于和同色系的其它日程区分。
+ * 三视图（月/周/年）统一走这里，避免各写一份置灰逻辑。
+ */
+export function barColorOf(schedule) {
+  if (schedule && schedule.status === 'done') return DONE_GREY
+  return colorOf(schedule?.color)
+}
+
+/** 已完成色带的灰色（比普通格子底色略深，色带仍可被识别） */
+export const DONE_GREY = '#b9b9b9'
+
+/**
  * 色带上文字用深色还是白色。
  *
  * 这里**刻意偏离** Android 版的 `ColorUtils.calculateLuminance(color) > 0.6`：

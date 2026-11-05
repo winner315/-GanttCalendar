@@ -36,20 +36,39 @@
         <!-- 上层：泳道色带。段与段之间按天宽定位，跨格延伸，事件名完整写出 -->
         <div class="lanes">
           <div v-for="lane in laneCount" :key="lane" class="lane">
-            <div
-              v-for="seg in laneSegs(wi, lane - 1)"
-              :key="seg.schedule.id"
-              class="seg"
-              :class="{ 'seg--dragging': dragState && dragState.id === seg.schedule.id }"
-              :style="segStyle(seg)"
-              :title="segTitle(seg)"
-              @pointerdown="onPointerDown($event, seg)"
-              @click="onSegClick(seg)"
-            >
-              <span class="seg-text">{{ seg.schedule.title }}</span>
-              <!-- 拖右边缘改工期 -->
-              <span class="seg-handle" title="拖动改工期" @pointerdown.stop="onPointerDown($event, seg, 'end')" />
-            </div>
+            <template v-for="seg in laneSegs(wi, lane - 1)" :key="seg.schedule.id">
+              <!-- 有备注时用自定义 tooltip：备注超长省略号展示；无备注退回原生日 title -->
+              <a-tooltip v-if="seg.schedule.note" placement="top">
+                <template #title>
+                  <div class="tip">
+                    <div class="tip-title">{{ seg.schedule.title }}</div>
+                    <div v-if="seg.schedule.note" class="tip-note">{{ seg.schedule.note }}</div>
+                  </div>
+                </template>
+                <div
+                  class="seg"
+                  :class="{ 'seg--dragging': dragState && dragState.id === seg.schedule.id }"
+                  :style="segStyle(seg)"
+                  @pointerdown="onPointerDown($event, seg)"
+                  @click="onSegClick(seg)"
+                >
+                  <span class="seg-text">{{ seg.schedule.title }}</span>
+                  <span class="seg-handle" title="拖动改工期" @pointerdown.stop="onPointerDown($event, seg, 'end')" />
+                </div>
+              </a-tooltip>
+              <div
+                v-else
+                class="seg"
+                :class="{ 'seg--dragging': dragState && dragState.id === seg.schedule.id }"
+                :style="segStyle(seg)"
+                :title="segTitle(seg)"
+                @pointerdown="onPointerDown($event, seg)"
+                @click="onSegClick(seg)"
+              >
+                <span class="seg-text">{{ seg.schedule.title }}</span>
+                <span class="seg-handle" title="拖动改工期" @pointerdown.stop="onPointerDown($event, seg, 'end')" />
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -64,7 +83,7 @@ import { computed, ref } from 'vue'
 import { WEEKDAYS, daysInMonth, firstDayOffset, monthStart, toDayNumber, todayDayNumber } from '../utils/date.js'
 import { calculateBars, daysFromPixels, laneCount as countLanes, moveBy, resizeEnd } from '../utils/gantt.js'
 import { badgeColorVar, badgeText, isRest } from '../utils/holiday.js'
-import { colorOf, textColorOn } from '../utils/palette.js'
+import { barColorOf, textColorOn } from '../utils/palette.js'
 
 const props = defineProps({
   year: { type: Number, required: true },
@@ -141,7 +160,7 @@ function segStyle(seg) {
   return {
     left,
     width,
-    background: colorOf(seg.schedule.color),
+    background: barColorOf(seg.schedule),
     color: textColorOn(seg.schedule.color),
     zIndex: ghost ? 5 : 1,
     opacity: ghost ? 0.75 : 1,
@@ -389,4 +408,5 @@ function badgeTitle(badge) {
   color: #999999;
   border-top: 1px solid var(--cell-border);
 }
+
 </style>

@@ -47,3 +47,20 @@ body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
+
+/* 甘特色带悬浮提示：标题 + 备注。a-tooltip 内容渲染在弹层（teleport），
+   不在组件 scoped 作用域内，所以这些类放全局；备注超长用省略号截断展示。 */
+.tip {
+  max-width: 320px;
+}
+
+.tip-title {
+  font-weight: 600;
+}
+
+.tip-note {
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

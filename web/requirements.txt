@@ -1,0 +1,8 @@
+# GanttCalendar Web 后端依赖（钉版本，与 qa-workbench 的既有版本对齐）
+fastapi==0.141.1
+uvicorn==0.52.1
+python-dotenv==1.2.1
+PyMySQL==1.2.3
+# 测试
+pytest==8.4.2
+httpx==0.28.1

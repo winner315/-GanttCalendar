@@ -12,6 +12,8 @@
         <BackupBar />
       </div>
     </header>
+    <!-- 连接状态是全局的，两个视图都要看，所以放布局层而不是各视图里 -->
+    <BackendAlert />
     <main class="content">
       <RouterView />
     </main>
@@ -21,6 +23,7 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
 import BackupBar from '../components/BackupBar.vue'
+import BackendAlert from '../components/BackendAlert.vue'
 </script>
 
 <style scoped>

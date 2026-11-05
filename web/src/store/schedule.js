@@ -1,141 +1,139 @@
 /**
- * 日程 store：内存 reactive 列表 + IndexedDB 落盘。
+ * 日程 store：内存 reactive 列表，数据真身在 MySQL（经后端 HTTP 读写）。
  *
  * 不引 Pinia —— 与 qa-workbench 的既有约定一致，一个 reactive 单例就够。
- * 所有写操作都是「先改内存、再落库」，落库失败不回滚内存（内存里已生效的操作
- * 用户已经看到了，回滚反而更困惑），但会把 storageAvailable 置 false 让界面提示。
+ *
+ * 写入一律 **server-first**：先请求后端，成功了才改内存。
+ * （IndexedDB 时代是「先改内存再落库」——那时内存与落盘是同一份存储的两层视图；
+ *  现在内存只是远端的缓存，提前展示未确认的写入等于对用户撒谎。）
+ * 失败就抛，内存保持原样，由调用方弹错误提示。
+ *
+ * 后端不可用时**绝不降级回本地存储**：persistent 置 false + backendError 带原因，
+ * 界面显示红色告警，数据一律不显示。
  */
 import { reactive, readonly } from 'vue'
-import { STORE_SCHEDULES, add as idbAdd, clearStore, deleteById, getAll, put, getBackend, storageAvailable } from '../utils/idb.js'
+import {
+  bulkInsertSchedules,
+  createSchedule,
+  deleteSchedule,
+  fetchSchedules,
+  replaceSchedules,
+  updateSchedule as updateScheduleApi,
+} from '../api/schedules.js'
 import { sanitizeAll, sanitizeSchedule } from '../utils/schedule.js'
 
 const state = reactive({
   schedules: [],
   loaded: false,
-  /** 加载过程中被判为脏数据而跳过的条数 */
+  /** 被判为脏数据而跳过的条数（后端 + 本地二次校验合计） */
   skippedOnLoad: 0,
-  /** 存储是否真的落盘；false 表示只在内存，刷新即丢 */
+  /** 后端是否可用；false 表示当前拿不到数据，界面要明着报错 */
   persistent: true,
+  /** 后端不可用时的原因（中文），供告警组件显示 */
+  backendError: '',
 })
-
-/**
- * 加载全部日程。脏数据跳过并计数，不抛异常。
- * 每次进入页面调用一次即可（数据量小，全量读）。
- */
-export async function load() {
-  await getBackend()
-  state.persistent = storageAvailable()
-  let raw = []
-  try {
-    raw = await getAll(STORE_SCHEDULES)
-  } catch {
-    state.persistent = false
-    raw = []
-  }
-  const { valid, skipped } = sanitizeAll(raw)
-  valid.sort((a, b) => a.startDay - b.startDay || a.endDay - b.endDay)
-  state.schedules = valid
-  state.skippedOnLoad = skipped
-  state.loaded = true
-  return state.schedules
-}
 
 function sortInPlace() {
   state.schedules.sort((a, b) => a.startDay - b.startDay || a.endDay - b.endDay)
 }
 
-/** 新增一条日程，返回带 id 的记录 */
+/**
+ * 加载全部日程。
+ * **不抛异常** —— ListView 是 fire-and-forget 调用（无 await 无 catch），
+ * 抛出去就是 unhandled rejection，页面还会渲染不出来。
+ * 失败状态一律通过 scheduleState 表达，由告警组件呈现。
+ */
+export async function load() {
+  try {
+    const { schedules, skipped } = await fetchSchedules()
+    // 后端已校验过一遍；这里再校验一次，防手工 INSERT 进库的脏数据与后端漂移
+    const { valid, skipped: localSkipped } = sanitizeAll(schedules)
+    valid.sort((a, b) => a.startDay - b.startDay || a.endDay - b.endDay)
+    state.schedules = valid
+    state.skippedOnLoad = (skipped ?? 0) + localSkipped
+    state.persistent = true
+    state.backendError = ''
+  } catch (e) {
+    state.persistent = false
+    state.backendError = e?.message ?? String(e)
+    state.schedules = []
+    state.skippedOnLoad = 0
+  } finally {
+    state.loaded = true
+  }
+  return state.schedules
+}
+
+/** 新增一条日程，返回后端落库后的记录（含自增 id） */
 export async function addSchedule(input) {
   const cleaned = sanitizeSchedule(input)
   if (!cleaned) throw new Error('日程数据不合法')
   delete cleaned.id
-  let saved = cleaned
-  try {
-    saved = await idbAdd(STORE_SCHEDULES, cleaned)
-  } catch {
-    // 落库失败：给个临时 id 让界面能继续用，并标记为非持久
-    state.persistent = false
-    saved = { ...cleaned, id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
-  }
+  const saved = await createSchedule(cleaned)
   state.schedules.push(saved)
   sortInPlace()
   return saved
 }
 
-/** 更新一条日程（按 id 覆盖） */
+/** 更新一条日程（按 id 覆盖）。内存里没有这个 id 时返回 null，不发请求 */
 export async function updateSchedule(input) {
   const cleaned = sanitizeSchedule(input)
   if (!cleaned || cleaned.id === undefined) throw new Error('日程数据不合法')
   const index = state.schedules.findIndex((s) => s.id === cleaned.id)
   if (index === -1) return null
-  try {
-    if (typeof cleaned.id === 'number') await put(STORE_SCHEDULES, cleaned)
-  } catch {
-    state.persistent = false
-  }
-  state.schedules[index] = cleaned
+  const saved = await updateScheduleApi(cleaned.id, cleaned)
+  state.schedules[index] = saved
   sortInPlace()
-  return cleaned
+  return saved
 }
 
-/** 删除一条日程 */
+/** 删除一条日程。内存里没有这个 id 时返回 false，不发请求 */
 export async function removeSchedule(id) {
   const index = state.schedules.findIndex((s) => s.id === id)
   if (index === -1) return false
-  try {
-    if (typeof id === 'number') await deleteById(STORE_SCHEDULES, id)
-  } catch {
-    state.persistent = false
-  }
+  await deleteSchedule(id)
   state.schedules.splice(index, 1)
   return true
 }
 
 /**
- * 用给定列表替换全部数据。
+ * 用给定列表替换全部数据（后端单事务，失败整体回滚）。
  * 注意：这是不可逆操作，调用方必须先向用户确认（导入备份的「覆盖」分支）。
  */
 export async function replaceAll(list) {
   const { valid, skipped } = sanitizeAll(list)
-  try {
-    await clearStore(STORE_SCHEDULES)
-  } catch {
-    state.persistent = false
-  }
-  state.schedules = []
-  for (const item of valid) {
-    const cleaned = { ...item }
-    delete cleaned.id
-    try {
-      state.schedules.push(await idbAdd(STORE_SCHEDULES, cleaned))
-    } catch {
-      state.persistent = false
-      state.schedules.push({ ...cleaned, id: `mem-${Math.random().toString(36).slice(2, 8)}` })
-    }
-  }
-  sortInPlace()
-  return { imported: state.schedules.length, skipped }
+  // 后端会在一个事务里清空并写入，并把提交后的全量带回 —— 直接用它覆盖内存，
+  // 不必猜 id，也不必二次请求
+  const { imported, schedules } = await replaceSchedules(valid)
+  const { valid: fresh, skipped: localSkipped } = sanitizeAll(schedules)
+  fresh.sort((a, b) => a.startDay - b.startDay || a.endDay - b.endDay)
+  state.schedules = fresh
+  return { imported, skipped: skipped + localSkipped }
 }
 
 /** 追加导入（合并分支）：按「标题 + 起止」去重，重复的不再插入 */
 export async function mergeAll(list) {
   const { valid, skipped } = sanitizeAll(list)
-  let skippedCount = skipped
   const keyOf = (s) => `${s.title}|${s.startDay}|${s.endDay}`
   const existing = new Set(state.schedules.map(keyOf))
-  let imported = 0
+  const fresh = []
+  let skippedCount = skipped
   for (const item of valid) {
     if (existing.has(keyOf(item))) {
       skippedCount++
       continue
     }
+    existing.add(keyOf(item))
     const cleaned = { ...item }
     delete cleaned.id
-    await addSchedule(cleaned)
-    existing.add(keyOf(cleaned))
-    imported++
+    fresh.push(cleaned)
   }
-  return { imported, skipped: skippedCount }
+  if (!fresh.length) return { imported: 0, skipped: skippedCount }
+
+  const { imported, schedules, skipped: serverSkipped } = await bulkInsertSchedules(fresh)
+  state.schedules.push(...schedules)
+  sortInPlace()
+  return { imported, skipped: skippedCount + (serverSkipped ?? 0) }
 }
 
 /** 只读状态，供组件使用 */

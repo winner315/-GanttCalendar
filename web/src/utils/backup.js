@@ -23,6 +23,7 @@ export function exportJson(schedules, exportedAt = new Date()) {
       startDay: s.startDay,
       endDay: s.endDay,
       color: s.color,
+      status: s.status,
     })),
   }
   return JSON.stringify(payload, null, 2)

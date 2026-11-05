@@ -32,7 +32,7 @@
 import { computed } from 'vue'
 import { daysInMonth, firstDayOffset, formatMonthDay, monthStart, toDayNumber, todayDayNumber } from '../utils/date.js'
 import { calculateBars } from '../utils/gantt.js'
-import { colorOf } from '../utils/palette.js'
+import { barColorOf } from '../utils/palette.js'
 import { isRest } from '../utils/holiday.js'
 const props = defineProps({
   year: { type: Number, required: true },
@@ -56,12 +56,13 @@ const months = computed(() =>
     const first = monthStart(props.year, month)
     const last = toDayNumber(props.year, month, daysInMonth(props.year, month))
     const bars = calculateBars(props.schedules, first, last)
-    // 这天命中的日程颜色，一天多条全都留着（按开始日排序，跨这天时段落的顺序）
+    // 这天命中的日程色值，一天多条全都留着（按开始日排序，跨这天时段落的顺序）
+    // 用 barColorOf 让「已完成」日程在这里也置灰，与月/周视图口径一致
     const colorsAt = new Map()
     for (const bar of bars) {
       for (let d = bar.startDay; d <= bar.endDay; d++) {
         if (!colorsAt.has(d)) colorsAt.set(d, [])
-        colorsAt.get(d).push(bar.schedule.color)
+        colorsAt.get(d).push(barColorOf(bar.schedule))
       }
     }
     const offset = firstDayOffset(props.year, month)
@@ -81,7 +82,7 @@ const months = computed(() =>
         day: inMonth ? dayNumber - first + 1 : null,
         isToday: dayNumber === today,
         badge,
-        colors: inMonth ? (colorsAt.get(dayNumber) ?? []).map(colorOf) : [],
+        colors: inMonth ? (colorsAt.get(dayNumber) ?? []) : [],
         title: inMonth
           ? [
               formatMonthDay(dayNumber),

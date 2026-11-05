@@ -21,14 +21,23 @@
         class="search"
         @update:value="onKeyword"
       />
+      <a-select
+        :value="prefs.statusFilter"
+        mode="multiple"
+        placeholder="按状态筛选"
+        allow-clear
+        class="statuses"
+        :max-tag-count="3"
+        @update:value="onStatuses"
+      >
+        <a-select-option v-for="st in STATUSES" :key="st" :value="st">{{ STATUS_LABELS[st] }}</a-select-option>
+      </a-select>
       <a-button type="primary" @click="openCreate">新建日程</a-button>
     </div>
 
-    <div v-if="!scheduleState.persistent" class="warn">
-      浏览器未开放本地存储（或处于隐私模式），本次改动的数据刷新后会丢失。
-    </div>
-    <div v-else-if="scheduleState.skippedOnLoad > 0" class="warn">
-      有 {{ scheduleState.skippedOnLoad }} 条本地数据格式不合法，已跳过未显示。
+    <!-- 后端连不上由顶栏的 BackendAlert 统一提示，这里只管数据本身的问题 -->
+    <div v-if="scheduleState.skippedOnLoad > 0" class="warn">
+      有 {{ scheduleState.skippedOnLoad }} 条数据格式不合法，已跳过未显示。
     </div>
 
     <BadgeLegend class="legend-bar" :data-covered="dataCovered" />
@@ -79,6 +88,7 @@ import {
   goToday,
   prefsState as prefs,
   setKeyword,
+  setStatusFilter,
   setView,
   setYearMonth,
   shiftMonthBy,
@@ -87,6 +97,7 @@ import {
 } from '../store/prefs.js'
 import { daysInMonth, fromDayNumber, monthTitle, toDayNumber, todayDayNumber } from '../utils/date.js'
 import { filterSchedules } from '../utils/filter.js'
+import { STATUSES, STATUS_LABELS } from '../utils/schedule.js'
 import { badgesInRange as holidayBadgesInRange, coveredYears } from '../utils/holiday.js'
 import { refreshIfStale } from '../api/holidaySync.js'
 
@@ -138,9 +149,13 @@ const dataCovered = computed(() => {
   return coveredYears(visibleRange.value.start, visibleRange.value.end).size > 0
 })
 
-/** 关键词 + 颜色筛选（甘特视图与列表页共用同一份条件与口径） */
+/** 关键词 + 颜色 + 状态筛选（甘特视图与列表页共用同一份条件与口径） */
 const filtered = computed(() =>
-  filterSchedules(scheduleState.schedules, { keyword: prefs.keyword, colors: prefs.colorFilter })
+  filterSchedules(scheduleState.schedules, {
+    keyword: prefs.keyword,
+    colors: prefs.colorFilter,
+    statuses: prefs.statusFilter,
+  })
 )
 
 onMounted(async () => {
@@ -168,6 +183,10 @@ watch(
 
 function onKeyword(value) {
   setKeyword(value ?? '')
+}
+
+function onStatuses(value) {
+  setStatusFilter(Array.isArray(value) ? value : [])
 }
 
 function onPickMonth(month) {
@@ -202,7 +221,13 @@ async function onSave(payload) {
 }
 
 async function onDelete(id) {
-  await removeSchedule(id)
+  try {
+    await removeSchedule(id)
+  } catch (e) {
+    // 后端没写成功就别说「已删除」，弹窗也留着让用户重试
+    message.error(e?.message ?? '删除失败')
+    return
+  }
   message.success('已删除')
   dialogOpen.value = false
   editing.value = null
@@ -245,6 +270,10 @@ async function onReschedule(next) {
 .search {
   width: 180px;
   margin-left: auto;
+}
+
+.statuses {
+  width: 170px;
 }
 
 .warn {

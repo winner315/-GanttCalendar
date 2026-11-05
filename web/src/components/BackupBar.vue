@@ -91,15 +91,25 @@ function closeConfirm() {
 }
 
 async function doMerge() {
-  const { imported, skipped } = await mergeAll(parsed.schedules)
-  closeConfirm()
-  message.success(`已合并导入 ${imported} 条${skipped ? `，跳过 ${skipped} 条（重复或格式不合法）` : ''}`)
+  try {
+    const { imported, skipped } = await mergeAll(parsed.schedules)
+    closeConfirm()
+    message.success(`已合并导入 ${imported} 条${skipped ? `，跳过 ${skipped} 条（重复或格式不合法）` : ''}`)
+  } catch (e) {
+    // 失败时不关确认框，用户可以直接重试
+    message.error(e?.message ?? '导入失败')
+  }
 }
 
 async function doReplace() {
-  const { imported, skipped } = await replaceAll(parsed.schedules)
-  closeConfirm()
-  message.success(`已覆盖导入 ${imported} 条${skipped ? `，跳过 ${skipped} 条格式不合法的` : ''}`)
+  try {
+    const { imported, skipped } = await replaceAll(parsed.schedules)
+    closeConfirm()
+    message.success(`已覆盖导入 ${imported} 条${skipped ? `，跳过 ${skipped} 条格式不合法的` : ''}`)
+  } catch (e) {
+    // 覆盖导入是后端单事务，失败即整体回滚，不会留下半截数据
+    message.error(e?.message ?? '导入失败')
+  }
 }
 </script>
 

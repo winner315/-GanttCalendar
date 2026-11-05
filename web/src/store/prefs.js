@@ -25,6 +25,8 @@ const defaults = () => {
     weekAnchor: null,
     keyword: '',
     colorFilter: [],
+    /** 状态筛选（多选，空数组=不筛选）。甘特与列表共用 */
+    statusFilter: [],
     /** 时间范围筛选（天数序号，null 表示该端不限）；甘特视图不用，列表页用 */
     rangeFrom: null,
     rangeTo: null,
@@ -111,6 +113,12 @@ export function setColorFilter(colors) {
   persist()
 }
 
+/** 状态筛选；传空数组即为清除 */
+export function setStatusFilter(statuses) {
+  state.statusFilter = Array.isArray(statuses) ? statuses : []
+  persist()
+}
+
 /** 时间范围筛选；两端都传 null 即为清除 */
 export function setRangeFilter(from, to) {
   state.rangeFrom = Number.isInteger(from) ? from : null
@@ -118,10 +126,11 @@ export function setRangeFilter(from, to) {
   persist()
 }
 
-/** 清空全部筛选条件（关键词 / 颜色 / 时间范围） */
+/** 清空全部筛选条件（关键词 / 颜色 / 状态 / 时间范围） */
 export function clearFilters() {
   state.keyword = ''
   state.colorFilter = []
+  state.statusFilter = []
   state.rangeFrom = null
   state.rangeTo = null
   persist()

@@ -20,13 +20,15 @@
       </a-form-item>
       <a-form-item label="开始日期" required>
         <!-- 允许直接键入日期（默认只读只能点日历面板，敲 YYYY-MM-DD 更快）。
-             属性名是 inputReadOnly，kebab 写法必须是 input-read-only -->
+             属性名是 inputReadOnly，kebab 写法必须是 input-read-only。
+             disabled-date：已选定结束日期时，晚于结束日期的日子不可选。 -->
         <a-date-picker
           v-model:value="form.start"
           style="width: 100%"
           format="YYYY-MM-DD"
           :allow-clear="false"
           :input-read-only="false"
+          :disabled-date="disableStartDate"
         />
       </a-form-item>
       <a-form-item label="结束日期" required>
@@ -36,6 +38,7 @@
           format="YYYY-MM-DD"
           :allow-clear="false"
           :input-read-only="false"
+          :disabled-date="disableEndDate"
         />
       </a-form-item>
       <a-form-item :label="`颜色（${colorNameOf(form.color)}）`">
@@ -51,6 +54,20 @@
             @click="form.color = i"
           />
         </div>
+      </a-form-item>
+      <a-form-item label="状态">
+        <a-select :value="form.status" @update:value="(v) => (form.status = v)">
+          <a-select-option v-for="st in STATUSES" :key="st" :value="st">{{ STATUS_LABELS[st] }}</a-select-option>
+        </a-select>
+      </a-form-item>
+      <a-form-item label="备注">
+        <a-textarea
+          v-model:value="form.note"
+          placeholder="选填。将显示在甘特图该日程色条的悬浮提示中"
+          :maxlength="500"
+          :rows="2"
+          :show-count="true"
+        />
       </a-form-item>
     </a-form>
     <template #footer>
@@ -74,6 +91,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { COLOR_NAMES, PALETTE, colorNameOf } from '../utils/palette.js'
 import { formatDay, parseDay, spanDays, todayDayNumber } from '../utils/date.js'
+import { STATUSES, STATUS_LABELS, STATUS_TODO } from '../utils/schedule.js'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -87,7 +105,31 @@ const isEdit = computed(() => Boolean(props.schedule?.id))
 const error = ref('')
 const titleInput = ref(null)
 
-const form = ref({ title: '', start: null, end: null, color: 0 })
+const form = ref({ title: '', start: null, end: null, color: 0, status: STATUS_TODO, note: '' })
+
+/**
+ * 交互限制：结束日期不得早于开始日期。
+ * ant-design-vue 的 disabled-date 回调收到 dayjs，返回 true 表示该日禁用（变灰选不了）：
+ *  - 结束日期选日面板：禁用「早于已选开始日期」的日子；
+ *  - 开始日期选日面板：禁用「晚于已选结束日期」的日子。
+ * 只有一侧选定时另一侧不额外禁用（保持可先选任意一端再回填另一端）。
+ * 这层拦截之外，onOk 里仍保留 endDay < startDay 的兜底校验。
+ */
+function dayNumber(d) {
+  return parseDay(d?.format ? d.format('YYYY-MM-DD') : d)
+}
+
+function disableStartDate(current) {
+  if (!form.value.end) return false
+  const end = dayNumber(form.value.end)
+  return end !== null && dayNumber(current) > end
+}
+
+function disableEndDate(current) {
+  if (!form.value.start) return false
+  const start = dayNumber(form.value.start)
+  return start !== null && dayNumber(current) < start
+}
 
 /** 天数序号 → dayjs（DatePicker 认 dayjs 对象），用本地日期构造以免跨时区偏一天 */
 function toDayjs(dayNumber) {
@@ -106,10 +148,12 @@ watch(
         start: toDayjs(props.schedule.startDay),
         end: toDayjs(props.schedule.endDay),
         color: props.schedule.color,
+        status: props.schedule.status ?? STATUS_TODO,
+        note: props.schedule.note ?? '',
       }
     } else {
       const today = todayDayNumber()
-      form.value = { title: '', start: toDayjs(today), end: toDayjs(today), color: 0 }
+      form.value = { title: '', start: toDayjs(today), end: toDayjs(today), color: 0, status: STATUS_TODO, note: '' }
     }
     nextTick(() => titleInput.value?.focus?.())
   },
@@ -139,6 +183,8 @@ function onOk() {
     startDay,
     endDay,
     color: form.value.color,
+    status: form.value.status,
+    note: form.value.note.trim(),
     days: spanDays(startDay, endDay),
   })
 }
